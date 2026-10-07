@@ -1,3 +1,4 @@
+import { readSchedule, dateSchema, rangesSchema } from "@/lib/schedule";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { authorized, login, passwordMatches } from "@/lib/auth";
@@ -13,6 +14,21 @@ const interval = z
   })
   .refine((v) => new Date(v.start) < new Date(v.end), "Rango inválido");
 const action = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("preferences"),
+    timezone: z.string().max(80),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+  }),
+  z.object({
+    action: z.literal("schedule"),
+    date: dateSchema,
+    ranges: rangesSchema,
+  }),
+  z.object({
+    action: z.literal("duration"),
+    id: z.string().uuid(),
+    duration: z.number().int().min(5).max(240),
+  }),
   z.object({
     action: z.literal("status"),
     id: z.string().uuid(),
@@ -74,7 +90,12 @@ export async function GET() {
         db.block.findMany({ orderBy: { start: "asc" } }),
         db.businessConfig.findUniqueOrThrow({ where: { id: 1 } }),
       ]);
+    const schedule = await readSchedule(db);
+    const services = await db.service.findMany({ orderBy: { name: "asc" } });
     return NextResponse.json({
+      scheduleReady: schedule.ready,
+      schedule: schedule.dates ?? {},
+      services,
       appointments,
       expenses,
       payments,
@@ -118,6 +139,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     const v = action.parse(body);
+    if (v.action === "schedule")
+      await db.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
+        const schedule = await readSchedule(tx);
+        if (!schedule.ready)
+          throw Error(
+            "Primero aplica la actualización SQL de horarios en Supabase",
+          );
+        const dates = { ...schedule.dates };
+        if (v.ranges.length) dates[v.date] = v.ranges;
+        else delete dates[v.date];
+        await tx.businessSchedule.upsert({
+          where: { id: 1 },
+          create: { id: 1, dates },
+          update: { dates },
+        });
+      });
+    if (v.action === "duration")
+      await db.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
+        await tx.service.update({
+          where: { id: v.id },
+          data: { duration: v.duration },
+        });
+      });
     if (v.action === "status")
       await db.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
@@ -174,6 +220,14 @@ export async function POST(req: NextRequest) {
       });
     }
     if (v.action === "unblock") await db.block.delete({ where: { id: v.id } });
+    if (v.action === "preferences") {
+      new Intl.DateTimeFormat("es", { timeZone: v.timezone });
+      new Intl.NumberFormat("es", { style: "currency", currency: v.currency });
+      await db.businessConfig.update({
+        where: { id: 1 },
+        data: { timezone: v.timezone, currency: v.currency },
+      });
+    }
     if (v.action === "config") {
       if (v.open >= v.close)
         throw Error("El cierre debe ser posterior a la apertura");
@@ -191,6 +245,7 @@ export async function POST(req: NextRequest) {
             ? "Revisa los datos del formulario"
             : e instanceof Error &&
                 [
+                  "Primero aplica la actualización SQL de horarios en Supabase",
                   "La cita ya tiene un estado final",
                   "La cita todavía no ha terminado",
                   "El descanso coincide con una cita",

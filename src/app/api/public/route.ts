@@ -1,3 +1,4 @@
+import { readSchedule } from "@/lib/schedule";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { slots } from "@/lib/availability";
@@ -29,8 +30,14 @@ export async function GET(req: NextRequest) {
       select: { start: true, end: true },
     });
     const blocks = await db.block.findMany();
+    const schedule = await readSchedule(db);
     return NextResponse.json({
-      slots: slots(date, service.duration, config, [...busy, ...blocks]),
+      slots: slots(
+        date,
+        service.duration,
+        { ...config, dailySchedule: schedule.dates },
+        [...busy, ...blocks],
+      ),
     });
   } catch (error: unknown) {
     // Log only diagnostic codes; never log connection strings or contact data.

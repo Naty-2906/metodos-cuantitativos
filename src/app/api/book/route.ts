@@ -1,3 +1,4 @@
+import { readSchedule } from "@/lib/schedule";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { formatInTimeZone } from "date-fns-tz";
@@ -42,10 +43,14 @@ export async function POST(req: NextRequest) {
         select: { start: true, end: true },
       });
       const blocks = await tx.block.findMany();
+      const schedule = await readSchedule(tx);
       if (
-        !slots(date, service.duration, config, [...busy, ...blocks]).some(
-          (s) => s.getTime() === start.getTime(),
-        )
+        !slots(
+          date,
+          service.duration,
+          { ...config, dailySchedule: schedule.dates },
+          [...busy, ...blocks],
+        ).some((s) => s.getTime() === start.getTime())
       )
         throw new Error("Este horario ya no está disponible");
       const { id } = await tx.appointment.create({

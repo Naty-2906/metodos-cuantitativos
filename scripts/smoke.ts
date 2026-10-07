@@ -1,8 +1,10 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import { db } from "../src/lib/db";
+import { datesSchema, type ScheduleDates } from "../src/lib/schedule";
 const base = process.env.APP_ORIGIN!;
 const ids: string[] = [];
+let savedDates: ScheduleDates | undefined;
 let cookie = "";
 async function post(body: unknown, auth = false) {
   return fetch(base + "/api/" + (auth ? "admin" : "book"), {
@@ -20,6 +22,81 @@ async function main() {
   assert.equal((await fetch(base + "/api/admin")).status, 401);
   const catalog = await (await fetch(base + "/api/public")).json();
   assert.equal(catalog.services.length, 3);
+  const login = await post(
+    { action: "login", password: process.env.ADMIN_PASSWORD },
+    true,
+  );
+  assert.equal(login.status, 200);
+  cookie = login.headers.get("set-cookie")!.split(";")[0];
+  const existing = await db.businessSchedule.findUnique({ where: { id: 1 } });
+  savedDates = datesSchema.parse(existing?.dates ?? {});
+  const scheduleDate = new Date(Date.now() + 86400000)
+    .toISOString()
+    .slice(0, 10);
+  assert.equal(
+    (
+      await post(
+        {
+          action: "schedule",
+          date: scheduleDate,
+          ranges: [
+            { open: "10:00", close: "12:00" },
+            { open: "15:00", close: "20:00" },
+          ],
+        },
+        true,
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await post(
+        {
+          action: "schedule",
+          date: scheduleDate,
+          ranges: [
+            { open: "10:00", close: "12:00" },
+            { open: "11:00", close: "13:00" },
+          ],
+        },
+        true,
+      )
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await post(
+        { action: "duration", id: catalog.services[0].id, duration: 0 },
+        true,
+      )
+    ).status,
+    400,
+  );
+  const originalDuration = catalog.services[0].duration;
+  assert.equal(
+    (
+      await post(
+        { action: "duration", id: catalog.services[0].id, duration: 45 },
+        true,
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await post(
+        {
+          action: "duration",
+          id: catalog.services[0].id,
+          duration: originalDuration,
+        },
+        true,
+      )
+    ).status,
+    200,
+  );
   let start = "",
     date = "";
   for (let i = 1; i < 8 && !start; i++) {
@@ -45,12 +122,6 @@ async function main() {
     const d = await response.json();
     if (d.id) ids.push(d.id);
   }
-  const login = await post(
-    { action: "login", password: process.env.ADMIN_PASSWORD },
-    true,
-  );
-  assert.equal(login.status, 200);
-  cookie = login.headers.get("set-cookie")!.split(";")[0];
   assert.equal(
     (await fetch(base + "/api/admin", { headers: { cookie } })).status,
     200,
@@ -122,5 +193,10 @@ async function main() {
 main().finally(async () => {
   await db.payment.deleteMany({ where: { appointmentId: { in: ids } } });
   await db.appointment.deleteMany({ where: { id: { in: ids } } });
+  if (savedDates)
+    await db.businessSchedule.update({
+      where: { id: 1 },
+      data: { dates: savedDates },
+    });
   await db.$disconnect();
 });

@@ -1,4 +1,6 @@
 "use client";
+import ScheduleSettings from "./schedule-settings";
+import type { ScheduleDates } from "@/lib/schedule";
 import { useState, useEffect, useCallback } from "react";
 import { fromZonedTime, formatInTimeZone } from "date-fns-tz";
 import {
@@ -31,6 +33,9 @@ type Transaction = {
   appointment?: { service: { name: string } };
 };
 type Data = {
+  schedule: ScheduleDates;
+  scheduleReady: boolean;
+  services: { id: string; name: string; duration: number; active: boolean }[];
   appointments: Appointment[];
   expenses: Transaction[];
   payments: Transaction[];
@@ -660,86 +665,15 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
               </div>
             )}
             {tab === "Configuración" && (
-              <section className="card max-w-xl">
-                <h2 className="text-xl font-semibold mb-6">
-                  Horario de tu barbería
-                </h2>
-                <form
-                  className="space-y-5"
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    const f = new FormData(e.currentTarget);
-                    await send({
-                      action: "config",
-                      open: f.get("open"),
-                      close: f.get("close"),
-                      timezone: f.get("timezone"),
-                      currency: f.get("currency"),
-                      workingDays: f.getAll("days").map(Number),
-                    });
-                  }}
-                >
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label>Apertura</label>
-                      <input
-                        type="time"
-                        name="open"
-                        defaultValue={data.config.open}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label>Cierre</label>
-                      <input
-                        type="time"
-                        name="close"
-                        defaultValue={data.config.close}
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label>Días de atención</label>
-                    <div className="flex flex-wrap gap-3">
-                      {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map(
-                        (d, i) => (
-                          <label key={d} className="flex items-center gap-1">
-                            <input
-                              className="w-auto"
-                              type="checkbox"
-                              name="days"
-                              value={i}
-                              defaultChecked={data.config.workingDays.includes(
-                                i,
-                              )}
-                            />
-                            {d}
-                          </label>
-                        ),
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <label>Zona horaria IANA</label>
-                    <input name="timezone" defaultValue={zone} required />
-                  </div>
-                  <div>
-                    <label>
-                      Moneda ISO (cambiarla no convierte precios existentes)
-                    </label>
-                    <input
-                      name="currency"
-                      defaultValue={data.config.currency}
-                      required
-                      pattern="[A-Z]{3}"
-                    />
-                  </div>
-                  <button disabled={busy} className="primary">
-                    Guardar configuración
-                  </button>
-                </form>
-              </section>
+              <ScheduleSettings
+                schedule={data.schedule}
+                ready={data.scheduleReady}
+                services={data.services}
+                timezone={zone}
+                currency={data.config.currency}
+                busy={busy}
+                send={send}
+              />
             )}
           </>
         )}

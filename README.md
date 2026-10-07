@@ -60,3 +60,9 @@ Usa el checkout existente `/workspace/metodos-cuantitativos`; no crees worktrees
 Para reproducir este entorno cloud de desarrollo: `node scripts/setup-local.mjs` conserva `.env`, genera claves aleatorias solo si no existe configuración e inicia PostgreSQL local; después ejecuta migraciones y seed. La base local en Docker es de desarrollo: el snapshot cloud no garantiza conservar volúmenes Docker. Usa PostgreSQL administrado para datos duraderos. Para entrar al panel, establece una clave propia en `ADMIN_PASSWORD` de `.env` y reinicia el servidor. Las claves aleatorias no se muestran en logs.
 
 `npm run test:smoke` valida endpoints contra el servidor activo y una base exclusivamente de desarrollo; crea y elimina sus citas y cobros de prueba. Los límites de peticiones conservan sus contadores hasta vencer la ventana.
+
+## Horarios por fecha y duración de servicios
+
+En Mi negocio → Configuración se elige una fecha concreta y hasta seis bloques de atención sin solapamiento. No hay repetición semanal: fechas no programadas quedan cerradas. Cada servicio permite editar su duración entre 5 y 240 minutos. Las citas existentes mantienen sus intervalos y precios. Las operaciones de horario, duración y reserva comparten un bloqueo transaccional para resolver solicitudes simultáneas.
+
+La migración `202610070001_dated_schedule` crea BusinessSchedule, una configuración por negocio con bloques fechados y RLS habilitada. Antes de aplicar esta migración, el backend mantiene la disponibilidad semanal anterior y el panel muestra un aviso. Al aplicarla, las fechas deben programarse explícitamente para aceptar nuevas reservas. No cambia ni elimina las citas existentes. En Supabase configurado inicialmente mediante SQL manual, ejecuta solo el SQL de esta migración en SQL Editor; antes de utilizar Prisma migrate deploy en esa base debes establecer su historial mediante el procedimiento de baseline de Prisma. No vuelvas a ejecutar la migración inicial.
