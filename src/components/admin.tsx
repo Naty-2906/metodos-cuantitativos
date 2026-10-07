@@ -57,7 +57,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
     [data, setData] = useState<Data>(),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [tab, setTab] = useState("Registrar operación"),
+    [tab, setTab] = useState("Mi dinero"),
     [period, setPeriod] = useState("month"),
     [day, setDay] = useState(""),
     [week, setWeek] = useState(false);
@@ -225,7 +225,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
           <div>
             <p className="eyebrow">CADA DETALLE CUENTA</p>
             <h1 className="text-3xl md:text-4xl font-medium mt-2">
-              {tab === "Registrar operación"
+              {tab === "Mi dinero"
                 ? "Tu negocio, sin complicaciones."
                 : "Tu negocio, de un vistazo."}
             </h1>
@@ -242,17 +242,15 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
           </a>
         </div>
         <div className="flex overflow-auto gap-7 border-b border-[#dfe4d9] my-8">
-          {["Registrar operación", "Resumen", "Agenda", "Configuración"].map(
-            (t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`pb-4 text-sm whitespace-nowrap ${tab === t ? "border-b-2 border-[#294e3b] font-semibold" : "muted"}`}
-              >
-                {t}
-              </button>
-            ),
-          )}
+          {["Mi dinero", "Resumen", "Agenda", "Configuración"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`pb-4 text-sm whitespace-nowrap ${tab === t ? "border-b-2 border-[#294e3b] font-semibold" : "muted"}`}
+            >
+              {t}
+            </button>
+          ))}
         </div>
         {error && (
           <p
@@ -293,7 +291,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
                 <p className="muted text-xs leading-5 mb-4">
                   Incluye ventas y gastos del período aunque estén pendientes.
                   Los aportes, retiros, préstamos y compras de máquinas se
-                  muestran en Registrar operación.
+                  muestran en Mi dinero.
                 </p>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
@@ -611,7 +609,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
                 </section>
               </>
             )}
-            {tab === "Registrar operación" && (
+            {tab === "Mi dinero" && (
               <>
                 <FinancialReports
                   finance={data.finance}

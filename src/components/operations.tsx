@@ -30,7 +30,7 @@ type Props = {
 const groups = [
   {
     id: "SALE",
-    title: "Cobré un corte o vendí un producto",
+    title: "Vendí un corte o un producto",
     detail: "Registra una venta pagada o por cobrar.",
     icon: Scissors,
   },
@@ -42,7 +42,7 @@ const groups = [
   },
   {
     id: "EXPENSE",
-    title: "Pagué arriendo u otro gasto",
+    title: "Tuve otro gasto",
     detail: "Arriendo, servicios, marketing y otros.",
     icon: Receipt,
   },
@@ -156,7 +156,9 @@ export default function Operations({
         };
       }
       if (await send(body)) {
-        setSuccess("Operación guardada. El asiento se creó automáticamente.");
+        setSuccess(
+          "Listo. Guardamos el movimiento y actualizamos tus números.",
+        );
         setGroup("");
         request.current = null;
       }
@@ -165,7 +167,7 @@ export default function Operations({
     }
   }
   return (
-    <div>
+    <div id="anotar-movimiento" className="scroll-mt-6">
       {!finance.ready && (
         <p
           role="alert"
@@ -176,29 +178,55 @@ export default function Operations({
         </p>
       )}
       <section className="card">
-        <p className="eyebrow">REGISTRAR UNA OPERACIÓN</p>
+        <p className="eyebrow">ANOTAR UN MOVIMIENTO</p>
         <h2 className="text-2xl font-semibold mt-2">
           ¿Qué pasó en tu negocio?
         </h2>
         <p className="muted text-sm mt-3">
-          Elige lo que hiciste. Nosotros organizamos el registro por detrás.
+          Elige lo que hiciste y anota cuánto y cuándo. Las citas que marcas
+          como completadas en la agenda ya se suman solas; no las registres otra
+          vez.
         </p>
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3 mt-6">
-          {groups.map(({ id, title, detail, icon: Icon }) => (
-            <button
-              key={id}
-              disabled={busy || scanning || !finance.ready}
-              onClick={() => choose(id)}
-              className={`rounded-xl border p-4 text-left flex gap-3 ${group === id ? "border-[#52754c] bg-[#f2f6ed]" : "border-[#e1e6db] hover:bg-[#f7f8f5]"}`}
-            >
-              <Icon size={22} className="text-[#62785a] shrink-0 mt-1" />
-              <div>
-                <p className="text-sm font-semibold">{title}</p>
-                <p className="muted text-xs leading-5 mt-2">{detail}</p>
-              </div>
-            </button>
-          ))}
+          {groups
+            .filter((g) => ["SALE", "SUPPLIES", "EXPENSE"].includes(g.id))
+            .map(({ id, title, detail, icon: Icon }) => (
+              <button
+                key={id}
+                disabled={busy || scanning || !finance.ready}
+                onClick={() => choose(id)}
+                className={`rounded-xl border p-4 text-left flex gap-3 ${group === id ? "border-[#52754c] bg-[#f2f6ed]" : "border-[#e1e6db] hover:bg-[#f7f8f5]"}`}
+              >
+                <Icon size={22} className="text-[#62785a] shrink-0 mt-1" />
+                <div>
+                  <p className="text-sm font-semibold">{title}</p>
+                  <p className="muted text-xs leading-5 mt-2">{detail}</p>
+                </div>
+              </button>
+            ))}
         </div>
+        <details className="mt-4">
+          <summary className="cursor-pointer text-sm font-semibold">
+            Otros: equipos, dinero personal o préstamos
+          </summary>
+          <div className="grid md:grid-cols-3 gap-3 mt-3">
+            {groups
+              .filter((g) => !["SALE", "SUPPLIES", "EXPENSE"].includes(g.id))
+              .map(({ id, title, detail, icon: Icon }) => (
+                <button
+                  type="button"
+                  key={id}
+                  disabled={busy || scanning || !finance.ready}
+                  onClick={() => choose(id)}
+                  className={`rounded-xl border p-4 text-left ${group === id ? "bg-[#f2f6ed] border-[#52754c]" : ""}`}
+                >
+                  <Icon size={20} />
+                  <p className="text-sm font-semibold mt-2">{title}</p>
+                  <p className="text-xs muted mt-2">{detail}</p>
+                </button>
+              ))}
+          </div>
+        </details>
         {success && (
           <p
             role="status"
@@ -445,8 +473,8 @@ export default function Operations({
                       : group === "DEBT"
                         ? "Recibir un préstamo no es una venta. Pagar capital reduce la deuda."
                         : state === "PENDING"
-                          ? "Quedará en Pendientes para registrar el cobro o pago cuando ocurra."
-                          : "La aplicación creará el asiento automáticamente. No tienes que elegir cuentas."}
+                          ? "Lo verás en Por cobrar / pagar. Márcalo cuando recibas o pagues el dinero."
+                          : "Solo guarda el movimiento. Tus números se actualizarán solos."}
                 </p>
                 <button
                   disabled={
@@ -457,7 +485,7 @@ export default function Operations({
                   }
                   className="primary mt-5 w-full flex justify-center items-center gap-2"
                 >
-                  {busy ? "Guardando…" : "Guardar operación"}
+                  {busy ? "Guardando…" : "Guardar movimiento"}
                   <ArrowRight size={16} />
                 </button>
               </div>
@@ -465,37 +493,42 @@ export default function Operations({
           </form>
         )}
       </section>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
-        {[
-          [
-            "Movimiento neto de dinero",
-            totals.cash + totals.bank + totals.legacyFunds,
-          ],
-          ["Por cobrar", totals.receivable],
-          ["Compras por pagar", totals.payable],
-          ["Préstamos por pagar", totals.loans],
-        ].map(([label, n]) => (
-          <div className="card" key={String(label)}>
-            <p className="muted text-xs">{String(label)}</p>
-            <p className="text-2xl font-semibold mt-3">
-              {money(Number(n), currency)}
-            </p>
-          </div>
-        ))}
-      </div>
-      <p className="muted text-xs mt-3">
-        Movimiento neto desde el primer registro; no incluye un saldo inicial de
-        caja o banco.
-      </p>
+      <details className="mt-5">
+        <summary className="cursor-pointer text-sm muted">
+          Ver pendientes y préstamos de todo el negocio
+        </summary>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+          {[
+            [
+              "Movimiento neto de dinero",
+              totals.cash + totals.bank + totals.legacyFunds,
+            ],
+            ["Por cobrar", totals.receivable],
+            ["Compras por pagar", totals.payable],
+            ["Préstamos por pagar", totals.loans],
+          ].map(([label, n]) => (
+            <div className="card" key={String(label)}>
+              <p className="muted text-xs">{String(label)}</p>
+              <p className="text-2xl font-semibold mt-3">
+                {money(Number(n), currency)}
+              </p>
+            </div>
+          ))}
+        </div>
+        <p className="muted text-xs mt-3">
+          Movimiento neto desde el primer registro; no incluye un saldo inicial
+          de caja o banco.
+        </p>
+      </details>
       <section className="card mt-5">
         <div className="flex flex-wrap gap-5 border-b pb-4 mb-5">
-          {["Movimientos", "Pendientes", "Libro diario"].map((v) => (
+          {["Movimientos", "Pendientes"].map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
               className={`text-sm ${view === v ? "font-semibold text-[#294e3b]" : "muted"}`}
             >
-              {v}
+              {v === "Pendientes" ? "Por cobrar / pagar" : "Lo que anotaste"}
               {v === "Pendientes" && pending.length
                 ? ` (${pending.length})`
                 : ""}
@@ -509,38 +542,42 @@ export default function Operations({
               no representan dinero cobrado o pagado.
             </p>
             <div className="space-y-3">
-              {finance.entries.slice(0, 100).map((e) => (
-                <div
-                  key={e.id}
-                  className="flex flex-wrap justify-between gap-3 border-b pb-3 text-sm"
-                >
-                  <div>
-                    <p className="font-semibold">
-                      {e.description}
-                      {isVoided(e, finance.entries) ? " · ANULADA" : ""}
-                    </p>
-                    <p className="muted text-xs mt-1">
-                      {kindNames[e.kind as keyof typeof kindNames] ?? e.kind} ·{" "}
-                      {formatInTimeZone(
-                        new Date(e.date),
-                        timezone,
-                        "dd/MM/yyyy",
-                      )}{" "}
-                      ·{" "}
-                      {e.pendingAccount && !e.settledAt
-                        ? "Pendiente"
-                        : e.pendingAccount
-                          ? "Saldado"
-                          : e.method === "CASH"
-                            ? "Efectivo"
-                            : e.method === "TRANSFER"
-                              ? "Transferencia"
-                              : "Medio histórico no registrado"}
-                    </p>
+              {finance.entries
+                .filter((e) => !e.sourceKey.startsWith("reversal:"))
+                .slice(0, 100)
+                .map((e) => (
+                  <div
+                    key={e.id}
+                    className="flex flex-wrap justify-between gap-3 border-b pb-3 text-sm"
+                  >
+                    <div>
+                      <p className="font-semibold">
+                        {e.description}
+                        {isVoided(e, finance.entries) ? " · ANULADA" : ""}
+                      </p>
+                      <p className="muted text-xs mt-1">
+                        {kindNames[e.kind as keyof typeof kindNames] ?? e.kind}{" "}
+                        ·{" "}
+                        {formatInTimeZone(
+                          new Date(e.date),
+                          timezone,
+                          "dd/MM/yyyy",
+                        )}{" "}
+                        ·{" "}
+                        {e.pendingAccount && !e.settledAt
+                          ? "Pendiente"
+                          : e.pendingAccount
+                            ? "Saldado"
+                            : e.method === "CASH"
+                              ? "Efectivo"
+                              : e.method === "TRANSFER"
+                                ? "Transferencia"
+                                : "Medio histórico no registrado"}
+                      </p>
+                    </div>
+                    <strong>{money(e.amount, e.currency)}</strong>
                   </div>
-                  <strong>{money(e.amount, e.currency)}</strong>
-                </div>
-              ))}
+                ))}
             </div>
             {finance.entries.length > 100 && (
               <p className="muted text-xs mt-3">
@@ -573,73 +610,82 @@ export default function Operations({
             )}
           </div>
         )}
-        {view === "Libro diario" && (
-          <>
-            <p className="muted text-xs mb-5">
-              Consulta los asientos que la aplicación construyó automáticamente.
-              Los registros anteriores se incorporan una sola vez; sus gastos no
-              tenían medio de pago registrado.
-            </p>
-            <div className="space-y-3">
-              {finance.entries.map((e) => (
-                <details className="border rounded-xl p-4" key={e.id}>
-                  <summary className="cursor-pointer text-sm font-semibold">
-                    {formatInTimeZone(new Date(e.date), timezone, "dd/MM/yyyy")}{" "}
-                    · {e.description} · {money(e.amount, e.currency)}
-                  </summary>
-                  <div className="overflow-x-auto mt-4">
-                    <table className="w-full text-sm">
-                      <thead className="muted text-xs text-left">
-                        <tr>
-                          <th>Cuenta</th>
-                          <th className="text-right">Debe</th>
-                          <th className="text-right">Haber</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {e.lines.map((l, i) => (
-                          <tr key={i} className="border-t">
-                            <td className="py-3">
-                              {accountNames[
-                                l.account as keyof typeof accountNames
-                              ] ?? l.account}
+        <details className="mt-6 border-t pt-4">
+          <summary className="cursor-pointer text-sm muted">
+            Libro contable para revisión (opcional)
+          </summary>
+          {
+            <>
+              <p className="muted text-xs mb-5">
+                Consulta los asientos que la aplicación construyó
+                automáticamente. Los registros anteriores se incorporan una sola
+                vez; sus gastos no tenían medio de pago registrado.
+              </p>
+              <div className="space-y-3">
+                {finance.entries.map((e) => (
+                  <details className="border rounded-xl p-4" key={e.id}>
+                    <summary className="cursor-pointer text-sm font-semibold">
+                      {formatInTimeZone(
+                        new Date(e.date),
+                        timezone,
+                        "dd/MM/yyyy",
+                      )}{" "}
+                      · {e.description} · {money(e.amount, e.currency)}
+                    </summary>
+                    <div className="overflow-x-auto mt-4">
+                      <table className="w-full text-sm">
+                        <thead className="muted text-xs text-left">
+                          <tr>
+                            <th>Cuenta</th>
+                            <th className="text-right">Debe</th>
+                            <th className="text-right">Haber</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {e.lines.map((l, i) => (
+                            <tr key={i} className="border-t">
+                              <td className="py-3">
+                                {accountNames[
+                                  l.account as keyof typeof accountNames
+                                ] ?? l.account}
+                              </td>
+                              <td className="text-right">
+                                {l.debit ? money(l.debit, e.currency) : "—"}
+                              </td>
+                              <td className="text-right">
+                                {l.credit ? money(l.credit, e.currency) : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="border-t font-semibold">
+                            <td className="pt-3">Total</td>
+                            <td className="text-right pt-3">
+                              {money(
+                                e.lines.reduce((n, l) => n + l.debit, 0),
+                                e.currency,
+                              )}
                             </td>
-                            <td className="text-right">
-                              {l.debit ? money(l.debit, e.currency) : "—"}
-                            </td>
-                            <td className="text-right">
-                              {l.credit ? money(l.credit, e.currency) : "—"}
+                            <td className="text-right pt-3">
+                              {money(
+                                e.lines.reduce((n, l) => n + l.credit, 0),
+                                e.currency,
+                              )}
                             </td>
                           </tr>
-                        ))}
-                        <tr className="border-t font-semibold">
-                          <td className="pt-3">Total</td>
-                          <td className="text-right pt-3">
-                            {money(
-                              e.lines.reduce((n, l) => n + l.debit, 0),
-                              e.currency,
-                            )}
-                          </td>
-                          <td className="text-right pt-3">
-                            {money(
-                              e.lines.reduce((n, l) => n + l.credit, 0),
-                              e.currency,
-                            )}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              ))}
-            </div>
-            {!finance.entries.length && (
-              <p className="muted text-sm">
-                Todavía no hay asientos registrados.
-              </p>
-            )}
-          </>
-        )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                ))}
+              </div>
+              {!finance.entries.length && (
+                <p className="muted text-sm">
+                  Todavía no hay asientos registrados.
+                </p>
+              )}
+            </>
+          }
+        </details>
       </section>
     </div>
   );

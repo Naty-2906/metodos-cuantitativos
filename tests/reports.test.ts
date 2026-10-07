@@ -32,6 +32,8 @@ test("report uses Santiago month and separates gross from VAT", () => {
   const r = report([sale], "2026-09", "America/Santiago", "CLP");
   assert.equal(r.totals.income, 1000000);
   assert.equal(r.vatOutput, 190000);
+  assert.equal(r.cashIn, 1190000);
+  assert.equal(r.cashOut, 0);
   assert.equal(r.missing, 0);
   assert.equal(
     report([sale], "2026-10", "America/Santiago", "CLP").totals.income,
@@ -49,6 +51,8 @@ test("reversal cancels income and VAT without erasing the original", () => {
   };
   const r = report([sale, reversal], "2026-09", "America/Santiago", "CLP");
   assert.equal(r.totals.profit, 0);
+  assert.equal(r.cashIn, 0);
+  assert.equal(r.cashOut, 0);
   assert.equal(r.vatOutput, 0);
   assert.equal(r.period.length, 2);
 });

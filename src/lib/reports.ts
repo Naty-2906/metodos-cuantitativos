@@ -30,6 +30,11 @@ export function report(
   const active = period.filter(
     (e) => !e.sourceKey.startsWith("reversal:") && !isVoided(e, all),
   );
+  const funds = active
+    .flatMap((e) => e.lines)
+    .filter((l) => ["CASH", "BANK", "LEGACY_FUNDS"].includes(l.account));
+  const cashIn = funds.reduce((n, l) => n + l.debit, 0),
+    cashOut = funds.reduce((n, l) => n + l.credit, 0);
   const documents = active.filter((e) => e.document);
   const purchases = documents.filter((e) =>
     ["SUPPLIES", "EXPENSE", "ASSET"].includes(e.kind),
@@ -94,6 +99,8 @@ export function report(
               : l.debit - l.credit),
         );
   return {
+    cashIn,
+    cashOut,
     assets,
     liabilities,
     equity,

@@ -131,3 +131,14 @@ generado. Todas las pruebas HTTP rechazan bases o aplicaciones remotas.
 La página pública incorpora ilustraciones originales en SVG de una silla, tijeras
 y poste de barbería rojo/blanco/azul, junto a la galería de Instagram existente.
 Las ilustraciones no representan fotografías reales del local.
+
+### Uso sencillo para el dueño
+
+La pantalla principal **Mi dinero** muestra ventas, gastos y ganancia estimada,
+además de entradas/salidas de dinero y compras/cobros pendientes al mes elegido.
+Aclara que la ganancia incluye importes pendientes y no es el saldo bancario.
+Los registros anulados no vuelven a aparecer como entradas o salidas reales.
+Para anotar algo hay tres opciones principales: venta, insumos u otro gasto;
+equipos, dinero personal y préstamos quedan en opciones adicionales.
+El IVA, los balances y el libro contable se consultan en secciones opcionales.
+El Excel conserva todos los informes para revisión contable.
