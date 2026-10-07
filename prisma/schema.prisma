@@ -99,3 +99,33 @@ model BusinessSchedule {
  id Int @id @default(1)
  dates Json @default("{}")
 }
+
+model JournalEntry {
+ id String @id @default(uuid()) @db.Uuid
+ sourceKey String @unique
+ kind String
+ description String
+ amount Int
+ currency String
+ method String @default("CASH")
+ date DateTime @db.Timestamptz(3)
+ createdAt DateTime @default(now())
+ category String?
+ pendingAccount String?
+ settledAt DateTime? @db.Timestamptz(3)
+ parentId String? @unique @db.Uuid
+ parent JournalEntry? @relation("Settlement",fields:[parentId],references:[id],onDelete:Restrict)
+ settlement JournalEntry? @relation("Settlement")
+ lines JournalLine[]
+ @@index([date])
+}
+model JournalLine {
+ id String @id @default(uuid()) @db.Uuid
+ entryId String @db.Uuid
+ entry JournalEntry @relation(fields:[entryId],references:[id],onDelete:Cascade)
+ account String
+ debit Int @default(0)
+ credit Int @default(0)
+ @@index([entryId])
+ @@index([account])
+}

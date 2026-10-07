@@ -1,4 +1,6 @@
 "use client";
+import Operations from "./operations";
+import type { JournalView } from "@/lib/accounting";
 import ScheduleSettings from "./schedule-settings";
 import type { ScheduleDates } from "@/lib/schedule";
 import { useState, useEffect, useCallback } from "react";
@@ -10,7 +12,6 @@ import {
   Wallet,
   Receipt,
   Activity,
-  Plus,
   LogOut,
 } from "lucide-react";
 type Appointment = {
@@ -30,9 +31,11 @@ type Transaction = {
   date: string;
   description: string;
   category?: string;
+  kind?: string;
   appointment?: { service: { name: string } };
 };
 type Data = {
+  finance: { ready: boolean; entries: JournalView[] };
   schedule: ScheduleDates;
   scheduleReady: boolean;
   services: { id: string; name: string; duration: number; active: boolean }[];
@@ -53,7 +56,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
     [data, setData] = useState<Data>(),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [tab, setTab] = useState("Resumen"),
+    [tab, setTab] = useState("Registrar operación"),
     [period, setPeriod] = useState("month"),
     [day, setDay] = useState(""),
     [week, setWeek] = useState(false);
@@ -221,10 +224,13 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
           <div>
             <p className="eyebrow">CADA DETALLE CUENTA</p>
             <h1 className="text-3xl md:text-4xl font-medium mt-2">
-              Tu negocio, de un vistazo.
+              {tab === "Registrar operación"
+                ? "Tu negocio, sin complicaciones."
+                : "Tu negocio, de un vistazo."}
             </h1>
             <p className="muted text-sm mt-3">
-              Más claridad en los números. Más tiempo para lo que haces bien.
+              Registra lo que pasó con palabras simples. Nosotros ordenamos los
+              números.
             </p>
           </div>
           <a
@@ -235,15 +241,17 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
           </a>
         </div>
         <div className="flex overflow-auto gap-7 border-b border-[#dfe4d9] my-8">
-          {["Resumen", "Agenda", "Caja", "Configuración"].map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`pb-4 text-sm whitespace-nowrap ${tab === t ? "border-b-2 border-[#294e3b] font-semibold" : "muted"}`}
-            >
-              {t}
-            </button>
-          ))}
+          {["Registrar operación", "Resumen", "Agenda", "Configuración"].map(
+            (t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`pb-4 text-sm whitespace-nowrap ${tab === t ? "border-b-2 border-[#294e3b] font-semibold" : "muted"}`}
+              >
+                {t}
+              </button>
+            ),
+          )}
         </div>
         {error && (
           <p
@@ -281,16 +289,21 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
                     ))}
                   </div>
                 </div>
+                <p className="muted text-xs leading-5 mb-4">
+                  Incluye ventas y gastos del período aunque estén pendientes.
+                  Los aportes, retiros, préstamos y compras de máquinas se
+                  muestran en Registrar operación.
+                </p>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
                     [
-                      "Ingresos totales",
+                      "Ingresos generados",
                       money(income),
                       Wallet,
-                      "Cobros registrados",
+                      "Ventas y servicios del período",
                     ],
                     [
-                      "Gastos totales",
+                      "Gastos del período",
                       money(cost),
                       Receipt,
                       "Inversión en tu negocio",
@@ -341,7 +354,10 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
                     {Object.entries(
                       payments.reduce<Record<string, number>>((acc, p) => {
                         const k =
-                          p.appointment?.service.name ?? "Cobros manuales";
+                          p.appointment?.service.name ??
+                          (p.kind === "SALE_PRODUCT"
+                            ? "Productos"
+                            : "Servicios registrados");
                         acc[k] = (acc[k] ?? 0) + p.amount;
                         return acc;
                       }, {}),
@@ -392,7 +408,9 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
                   </section>
                 </div>
                 <section className="card mt-5 overflow-x-auto">
-                  <h2 className="font-semibold mb-5">Movimientos recientes</h2>
+                  <h2 className="font-semibold mb-5">
+                    Ingresos y gastos del período
+                  </h2>
                   <table className="w-full text-sm">
                     <thead className="muted text-xs text-left">
                       <tr>
@@ -592,77 +610,14 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
                 </section>
               </>
             )}
-            {tab === "Caja" && (
-              <div className="grid md:grid-cols-2 gap-6">
-                {["expense", "payment"].map((action) => (
-                  <section className={card} key={action}>
-                    <h2 className="text-xl font-semibold mb-6 flex gap-2">
-                      <Plus size={20} />
-                      {action === "expense"
-                        ? "Registrar gasto"
-                        : "Cobro manual"}
-                    </h2>
-                    <form
-                      className="space-y-4"
-                      onSubmit={(e) => form(e, action)}
-                    >
-                      <div>
-                        <label>Monto ({data.config.currency})</label>
-                        <input
-                          type="number"
-                          name="amount"
-                          min="0.01"
-                          max="1000000"
-                          step="0.01"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label>Fecha y hora · {zone}</label>
-                        <input type="datetime-local" name="date" required />
-                      </div>
-                      <div>
-                        <label>Descripción</label>
-                        <input name="description" required maxLength={200} />
-                      </div>
-                      {action === "expense" ? (
-                        <div>
-                          <label>Categoría</label>
-                          <select name="category">
-                            {[
-                              ["SUPPLIES", "Insumos / cuchillas"],
-                              ["RENT", "Alquiler"],
-                              ["UTILITIES", "Servicios"],
-                              ["TOOLS", "Herramientas"],
-                              ["MARKETING", "Marketing"],
-                              ["OTHER", "Otros"],
-                            ].map(([v, l]) => (
-                              <option value={v} key={v}>
-                                {l}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ) : (
-                        <div>
-                          <label>Medio de pago</label>
-                          <select name="method">
-                            <option value="CASH">Efectivo</option>
-                            <option value="TRANSFER">Transferencia</option>
-                          </select>
-                          <p className="muted text-xs mt-2">
-                            Para citas, usa “Completada” en la agenda para
-                            evitar duplicar el ingreso.
-                          </p>
-                        </div>
-                      )}
-                      <button className="primary w-full" disabled={busy}>
-                        Guardar movimiento
-                      </button>
-                    </form>
-                  </section>
-                ))}
-              </div>
+            {tab === "Registrar operación" && (
+              <Operations
+                finance={data.finance}
+                timezone={zone}
+                currency={data.config.currency}
+                busy={busy}
+                send={send}
+              />
             )}
             {tab === "Configuración" && (
               <ScheduleSettings

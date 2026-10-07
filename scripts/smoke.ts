@@ -3,6 +3,13 @@ import assert from "node:assert/strict";
 import { db } from "../src/lib/db";
 import { datesSchema, type ScheduleDates } from "../src/lib/schedule";
 const base = process.env.APP_ORIGIN!;
+if (
+  !["localhost", "127.0.0.1"].includes(new URL(base).hostname) ||
+  !["localhost", "127.0.0.1"].includes(
+    new URL(process.env.DATABASE_URL!).hostname,
+  )
+)
+  throw Error("Las pruebas solo se ejecutan en una aplicación y base locales");
 const ids: string[] = [];
 let savedDates: ScheduleDates | undefined;
 let cookie = "";
@@ -191,6 +198,19 @@ async function main() {
   );
 }
 main().finally(async () => {
+  const payments = await db.payment.findMany({
+    where: { appointmentId: { in: ids } },
+    select: { id: true },
+  });
+  const tables = await db.$queryRaw<
+    { ready: boolean }[]
+  >`SELECT to_regclass('public."JournalEntry"') IS NOT NULL AS ready`;
+  if (tables[0].ready)
+    await db.journalEntry.deleteMany({
+      where: {
+        sourceKey: { in: payments.map((p) => "legacy:payment:" + p.id) },
+      },
+    });
   await db.payment.deleteMany({ where: { appointmentId: { in: ids } } });
   await db.appointment.deleteMany({ where: { id: { in: ids } } });
   if (savedDates)

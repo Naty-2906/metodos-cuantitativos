@@ -1,3 +1,10 @@
+import {
+  journalReady,
+  importLegacy,
+  writeOperation,
+  settlePending,
+} from "@/lib/journal";
+import { operationSchema } from "@/lib/accounting";
 import { readSchedule, dateSchema, rangesSchema } from "@/lib/schedule";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -14,6 +21,13 @@ const interval = z
   })
   .refine((v) => new Date(v.start) < new Date(v.end), "Rango inválido");
 const action = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("operation"), operation: operationSchema }),
+  z.object({
+    action: z.literal("settle"),
+    id: z.string().uuid(),
+    date: z.string().datetime(),
+    method: z.enum(["CASH", "TRANSFER"]),
+  }),
   z.object({
     action: z.literal("preferences"),
     timezone: z.string().max(80),
@@ -90,6 +104,57 @@ export async function GET() {
         db.block.findMany({ orderBy: { start: "asc" } }),
         db.businessConfig.findUniqueOrThrow({ where: { id: 1 } }),
       ]);
+    const finance = await db.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
+        if (!(await journalReady(tx))) return { ready: false, entries: [] };
+        await importLegacy(tx, config.currency);
+        return {
+          ready: true,
+          entries: await tx.journalEntry.findMany({
+            include: { lines: true },
+            orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+          }),
+        };
+      },
+      { timeout: 20000 },
+    );
+    const paymentById = new Map(payments.map((p) => [p.id, p]));
+    const financePayments = finance.entries.flatMap((e) => {
+      const amount = e.lines
+        .filter((l) => l.account.startsWith("REVENUE_"))
+        .reduce((n, l) => n + l.credit - l.debit, 0);
+      if (!amount) return [];
+      const old = e.sourceKey.startsWith("legacy:payment:")
+        ? paymentById.get(e.sourceKey.slice("legacy:payment:".length))
+        : undefined;
+      return [
+        {
+          id: e.id,
+          amount,
+          date: e.date,
+          description: e.description,
+          kind: e.kind,
+          appointment: old?.appointment ?? null,
+        },
+      ];
+    });
+    const financeExpenses = finance.entries.flatMap((e) => {
+      const amount = e.lines
+        .filter((l) => l.account.startsWith("EXPENSE_"))
+        .reduce((n, l) => n + l.debit - l.credit, 0);
+      return amount
+        ? [
+            {
+              id: e.id,
+              amount,
+              date: e.date,
+              description: e.description,
+              category: e.category ?? "OTHER",
+            },
+          ]
+        : [];
+    });
     const schedule = await readSchedule(db);
     const services = await db.service.findMany({ orderBy: { name: "asc" } });
     return NextResponse.json({
@@ -97,8 +162,9 @@ export async function GET() {
       schedule: schedule.dates ?? {},
       services,
       appointments,
-      expenses,
-      payments,
+      expenses: finance.ready ? financeExpenses : expenses,
+      payments: finance.ready ? financePayments : payments,
+      finance,
       blocks,
       config,
     });
@@ -139,6 +205,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     const v = action.parse(body);
+    if (v.action === "operation" || v.action === "settle")
+      await db.$transaction(
+        async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
+          if (!(await journalReady(tx)))
+            throw Error(
+              "Primero aplica la actualización SQL de operaciones en Supabase",
+            );
+          const config = await tx.businessConfig.findUniqueOrThrow({
+            where: { id: 1 },
+          });
+          await importLegacy(tx, config.currency);
+          if (v.action === "operation")
+            await writeOperation(
+              tx,
+              v.operation,
+              config.currency,
+              "manual:" + v.operation.requestId,
+            );
+          else await settlePending(tx, v);
+        },
+        { timeout: 20000 },
+      );
     if (v.action === "schedule")
       await db.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
@@ -178,7 +267,7 @@ export async function POST(req: NextRequest) {
           where: { id: a.id },
           data: { status: v.status },
         });
-        if (v.status === "COMPLETED")
+        if (v.status === "COMPLETED") {
           await tx.payment.create({
             data: {
               appointmentId: a.id,
@@ -187,14 +276,43 @@ export async function POST(req: NextRequest) {
               description: a.name + " · servicio",
             },
           });
+          if (await journalReady(tx)) {
+            const config = await tx.businessConfig.findUniqueOrThrow({
+              where: { id: 1 },
+            });
+            await importLegacy(tx, config.currency);
+          }
+        }
       });
     if (v.action === "expense") {
       const { action: _, ...data } = v;
-      await db.expense.create({ data: { ...data, date: new Date(data.date) } });
+      await db.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
+        await tx.expense.create({
+          data: { ...data, date: new Date(data.date) },
+        });
+        if (await journalReady(tx))
+          await importLegacy(
+            tx,
+            (await tx.businessConfig.findUniqueOrThrow({ where: { id: 1 } }))
+              .currency,
+          );
+      });
     }
     if (v.action === "payment") {
       const { action: _, ...data } = v;
-      await db.payment.create({ data: { ...data, date: new Date(data.date) } });
+      await db.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
+        await tx.payment.create({
+          data: { ...data, date: new Date(data.date) },
+        });
+        if (await journalReady(tx))
+          await importLegacy(
+            tx,
+            (await tx.businessConfig.findUniqueOrThrow({ where: { id: 1 } }))
+              .currency,
+          );
+      });
     }
     if (v.action === "block") {
       const valid = interval.parse(v);
@@ -220,21 +338,36 @@ export async function POST(req: NextRequest) {
       });
     }
     if (v.action === "unblock") await db.block.delete({ where: { id: v.id } });
-    if (v.action === "preferences") {
-      new Intl.DateTimeFormat("es", { timeZone: v.timezone });
-      new Intl.NumberFormat("es", { style: "currency", currency: v.currency });
-      await db.businessConfig.update({
-        where: { id: 1 },
-        data: { timezone: v.timezone, currency: v.currency },
-      });
-    }
-    if (v.action === "config") {
-      if (v.open >= v.close)
+    if (v.action === "preferences" || v.action === "config") {
+      if (v.action === "config" && v.open >= v.close)
         throw Error("El cierre debe ser posterior a la apertura");
       new Intl.DateTimeFormat("es", { timeZone: v.timezone });
       new Intl.NumberFormat("es", { style: "currency", currency: v.currency });
-      const { action: _, ...data } = v;
-      await db.businessConfig.update({ where: { id: 1 }, data });
+      await db.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
+        const current = await tx.businessConfig.findUniqueOrThrow({
+          where: { id: 1 },
+        });
+        if (
+          current.currency !== v.currency &&
+          ((await tx.payment.count()) > 0 ||
+            (await tx.expense.count()) > 0 ||
+            ((await journalReady(tx)) && (await tx.journalEntry.count()) > 0))
+        )
+          throw Error(
+            "No se puede cambiar la moneda con operaciones registradas",
+          );
+        await tx.businessConfig.update({
+          where: { id: 1 },
+          data: {
+            timezone: v.timezone,
+            currency: v.currency,
+            ...(v.action === "config"
+              ? { open: v.open, close: v.close, workingDays: v.workingDays }
+              : {}),
+          },
+        });
+      });
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
@@ -245,6 +378,12 @@ export async function POST(req: NextRequest) {
             ? "Revisa los datos del formulario"
             : e instanceof Error &&
                 [
+                  "No se puede cambiar la moneda con operaciones registradas",
+                  "Primero aplica la actualización SQL de operaciones en Supabase",
+                  "El capital a pagar supera los préstamos registrados",
+                  "La operación no tiene un saldo pendiente",
+                  "El pago no puede ser anterior a la operación",
+                  "Esta operación ya fue registrada con otros datos",
                   "Primero aplica la actualización SQL de horarios en Supabase",
                   "La cita ya tiene un estado final",
                   "La cita todavía no ha terminado",
