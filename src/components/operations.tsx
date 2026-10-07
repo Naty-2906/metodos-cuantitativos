@@ -85,7 +85,7 @@ export default function Operations({
     [date, setDate] = useState(today),
     [description, setDescription] = useState(""),
     [method, setMethod] = useState<"CASH" | "TRANSFER">("CASH"),
-    [category, setCategory] = useState("RENT"),
+    [category, setCategory] = useState("OTHER"),
     [interest, setInterest] = useState("0"),
     [debtId, setDebtId] = useState(""),
     [view, setView] = useState("Movimientos"),
@@ -320,16 +320,27 @@ export default function Operations({
                   </div>
                 ) : (
                   <>
-                    <ReceiptScanner
-                      currency={currency}
-                      disabled={busy}
-                      onBusyChange={setScanning}
-                      onExtract={(fields) => {
-                        if (fields.amount !== undefined)
-                          setAmount(String(fields.amount));
-                        if (fields.date) setDate(fields.date);
-                      }}
-                    />
+                    {["SUPPLIES", "EXPENSE", "ASSET"].includes(group) && (
+                      <ReceiptScanner
+                        currency={currency}
+                        disabled={busy}
+                        onBusyChange={setScanning}
+                        onExtract={(fields) => {
+                          if (fields.amount !== undefined)
+                            setAmount(String(fields.amount));
+                          if (fields.date) setDate(fields.date);
+                          if (fields.description)
+                            setDescription(fields.description);
+                          if (fields.kind) {
+                            setGroup(fields.kind);
+                            setVariant(fields.kind);
+                          }
+                          if (fields.category) setCategory(fields.category);
+                          else if (fields.kind === "EXPENSE")
+                            setCategory("OTHER");
+                        }}
+                      />
+                    )}
                     <label htmlFor="operation-amount">
                       {kind === "DEBT_PAYMENT"
                         ? "Total pagado (capital + intereses)"

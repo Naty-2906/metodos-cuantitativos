@@ -142,3 +142,30 @@ Para anotar algo hay tres opciones principales: venta, insumos u otro gasto;
 equipos, dinero personal y préstamos quedan en opciones adicionales.
 El IVA, los balances y el libro contable se consultan en secciones opcionales.
 El Excel conserva todos los informes para revisión contable.
+
+### Boletas de compra e interpretación con IA
+
+En **Mi dinero → Compré insumos / Tuve otro gasto / Equipos**, adjuntar una foto.
+La lectura OCR ocurre en el dispositivo. La propuesta incluye total, fecha,
+artículos, descripción y clasificación. **Usar estos datos en mi gasto** rellena
+el formulario; **Guardar movimiento** registra una única compra por el total.
+No se suman los artículos además del total, ni se guardan gastos sin revisión.
+Los equipos se distinguen de insumos; si hay ambos se solicita revisar y separar.
+Los artículos detectados se resumen en la descripción del movimiento, no se crea
+un inventario ni se almacenan fotografías.
+
+Para interpretación avanzada, configurar **OPENAI_API_KEY** como variable privada
+**en Vercel**, y redesplegar. `OPENAI_RECEIPT_MODEL` es opcional (por defecto
+`gpt-4.1-mini`). Nunca usar un prefijo NEXT_PUBLIC_ ni compartir la clave en chat.
+La opción IA solo aparece disponible si el servidor tiene una clave configurada;
+no se ha validado una conexión real con el proveedor sin esa credencial. Una clave
+configurada todavía necesita autorización y saldo en la cuenta del proveedor.
+El dueño activa la opción: solo el texto OCR se envía a OpenAI, mediante el servidor.
+Las respuestas se validan, los valores desconocidos permanecen vacíos y se requiere
+confirmación. No se presume IVA recuperable ni se emiten documentos tributarios.
+
+`/api/admin/receipt` requiere sesión de dueño, verifica origen para POST, limita
+20 interpretaciones por hora y acota texto y salida. Se pide al proveedor no
+almacenar la conversación (`store: false`); aplican sus políticas de tratamiento
+API. Si falta clave o falla el proveedor, la lectura automática local sigue
+funcionando. Las llamadas al proveedor pueden tener costo según su tarifa.

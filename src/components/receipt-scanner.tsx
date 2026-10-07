@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Camera } from "lucide-react";
-import { extractReceiptFields, type ReceiptFields } from "@/lib/receipt";
+import {
+  localReceiptExpense,
+  type ReceiptExpense,
+} from "@/lib/receipt-expense";
 export default function ReceiptScanner({
   currency,
   disabled,
@@ -10,16 +13,25 @@ export default function ReceiptScanner({
 }: {
   currency: string;
   disabled: boolean;
-  onExtract: (fields: ReceiptFields) => void;
+  onExtract: (fields: ReceiptExpense) => void;
   onBusyChange: (busy: boolean) => void;
 }) {
   const [busy, setBusy] = useState(false),
     [status, setStatus] = useState(""),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [available, setAvailable] = useState(false),
+    [useAI, setUseAI] = useState(false),
+    [proposal, setProposal] = useState<ReceiptExpense | null>(null);
   const worker = useRef<import("tesseract.js").Worker | null>(null),
     alive = useRef(true);
   useEffect(() => {
     alive.current = true;
+    void fetch("/api/admin/receipt")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v) => {
+        if (alive.current) setAvailable(v?.available === true);
+      })
+      .catch(() => {});
     return () => {
       alive.current = false;
       void worker.current?.terminate().catch(() => {});
@@ -27,6 +39,7 @@ export default function ReceiptScanner({
   }, []);
   async function scan(file: File) {
     setError("");
+    setProposal(null);
     if (
       !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
       file.size > 10 * 1024 * 1024
@@ -53,12 +66,36 @@ export default function ReceiptScanner({
       if (!alive.current) return;
       const { data } = await active.recognize(file);
       if (!alive.current) return;
-      const fields = extractReceiptFields(data.text, currency);
-      onExtract(fields);
+      let fields = localReceiptExpense(data.text, currency);
+      let interpreted = false;
+      if (useAI && available) {
+        setStatus("Interpretando la compra con IA…");
+        try {
+          const response = await fetch("/api/admin/receipt", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: data.text.slice(0, 10000), currency }),
+            signal: AbortSignal.timeout(25000),
+          });
+          const result = await response.json();
+          if (!response.ok) throw Error(result.error ?? "IA no disponible");
+          fields = result.fields;
+          interpreted = true;
+        } catch (error) {
+          if (alive.current)
+            setError(
+              error instanceof Error
+                ? error.message
+                : "Se usó la lectura normal porque la IA no respondió.",
+            );
+        }
+      }
+      if (!alive.current) return;
+      setProposal(fields);
       setStatus(
-        fields.amount || fields.date
-          ? "Datos sugeridos. Revisa monto y fecha antes de guardar."
-          : "No pudimos identificar el total o la fecha. Puedes ingresarlos manualmente.",
+        interpreted
+          ? "Propuesta interpretada con IA. Revisa antes de usarla."
+          : "Propuesta de la lectura automática. Revisa antes de usarla.",
       );
     } catch {
       if (alive.current)
@@ -81,8 +118,25 @@ export default function ReceiptScanner({
         className="flex gap-2 items-center text-sm font-semibold text-[#294e3b]"
       >
         <Camera size={18} />
-        Escanear boleta o comprobante (opcional)
+        Leer boleta de una compra (opcional)
       </label>
+      {available ? (
+        <label className="flex gap-2 items-start text-xs mt-3">
+          <input
+            type="checkbox"
+            checked={useAI}
+            disabled={busy || disabled}
+            onChange={(e) => setUseAI(e.target.checked)}
+          />
+          Usar IA para interpretar el texto y sugerir el gasto. El texto leído
+          se enviará a OpenAI; la foto permanece en tu dispositivo.
+        </label>
+      ) : (
+        <p className="muted text-xs mt-2">
+          Puedes usar la lectura automática. La interpretación avanzada con IA
+          aún no está activada.
+        </p>
+      )}
       <input
         id="receipt-photo"
         type="file"
@@ -97,13 +151,83 @@ export default function ReceiptScanner({
         className="text-xs mt-2"
       />
       <p className="muted text-xs leading-5 mt-2">
-        La foto se procesa en tu dispositivo; no se sube ni se guarda. La
-        primera lectura descarga el lector de texto y necesita internet. Siempre
-        confirma los datos sugeridos.
+        La foto se lee en tu dispositivo y no se guarda. Si activas la IA, solo
+        se envía el texto leído para interpretarlo. La primera lectura descarga
+        el lector de texto y necesita internet. Siempre confirma los datos
+        sugeridos.
       </p>
       <p role="status" className="text-xs mt-2">
         {status}
       </p>
+      {proposal && (
+        <div className="mt-4 rounded-xl bg-white p-4 space-y-2 text-sm">
+          <h3 className="font-semibold">Esto encontramos en tu compra</h3>
+          <p>
+            Total:{" "}
+            <strong>
+              {proposal.amount !== undefined
+                ? new Intl.NumberFormat("es-CL", {
+                    style: "currency",
+                    currency,
+                  }).format(proposal.amount)
+                : "Por completar"}
+            </strong>
+          </p>
+          <p>Fecha: {proposal.date ?? "Por confirmar"}</p>
+          <p>
+            Tipo:{" "}
+            {proposal.kind === "SUPPLIES"
+              ? "Insumos para trabajar"
+              : proposal.kind === "ASSET"
+                ? "Equipo o mueble"
+                : proposal.kind === "EXPENSE"
+                  ? "Otro gasto"
+                  : "Elígelo en el formulario"}
+          </p>
+          {proposal.description && <p>{proposal.description}</p>}
+          {proposal.items.length > 0 && (
+            <details>
+              <summary className="cursor-pointer">
+                Ver artículos detectados ({proposal.items.length})
+              </summary>
+              <ul className="mt-2 space-y-1">
+                {proposal.items.map((item, i) => (
+                  <li key={i}>
+                    {item.quantity ? `${item.quantity} × ` : ""}
+                    {item.name}
+                    {item.amount !== null
+                      ? ` · ${new Intl.NumberFormat("es-CL", { style: "currency", currency }).format(item.amount)}`
+                      : ""}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {proposal.warnings.map((warning, i) => (
+            <p className="text-amber-800 text-xs" key={i}>
+              {warning}
+            </p>
+          ))}
+          <button
+            type="button"
+            className="btn"
+            disabled={busy || disabled}
+            onClick={() => {
+              onExtract(proposal);
+              setProposal(null);
+              setStatus(
+                "Datos pasados al formulario. Revísalos y pulsa Guardar movimiento para agregarlos al negocio.",
+              );
+            }}
+          >
+            Usar estos datos en mi gasto
+          </button>
+          <p className="muted text-xs">
+            Se registrará una sola compra por el total, con los artículos
+            resumidos en la descripción. Todavía no se guarda ningún gasto.
+          </p>
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-red-700 text-xs mt-2">
           {error}
