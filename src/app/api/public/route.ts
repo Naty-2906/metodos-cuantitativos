@@ -32,7 +32,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       slots: slots(date, service.duration, config, [...busy, ...blocks]),
     });
-  } catch {
+  } catch (error: unknown) {
+    // Log only diagnostic codes; never log connection strings or contact data.
+    const diagnostic = error as {
+      name?: string;
+      code?: string;
+      meta?: { driverAdapterError?: { cause?: { originalCode?: string } } };
+    } | null;
+    const safeCode = (value: unknown) =>
+      typeof value === "string" && /^[A-Z0-9]{2,12}$/.test(value)
+        ? value
+        : "UNKNOWN";
+    console.error("Public agenda database failure", {
+      prismaCode: safeCode(diagnostic?.code),
+      databaseCode: safeCode(
+        diagnostic?.meta?.driverAdapterError?.cause?.originalCode,
+      ),
+      databaseUrlConfigured: Boolean(process.env.DATABASE_URL),
+    });
     return NextResponse.json(
       { error: "La agenda no está disponible. Intenta más tarde." },
       { status: 503 },
