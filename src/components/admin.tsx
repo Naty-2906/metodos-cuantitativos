@@ -165,7 +165,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
     return (
       <main className="max-w-md mx-auto px-6 py-20">
         <a href="/" className="flex gap-2 items-center font-semibold mb-10">
-          <Scissors /> STUDIO BARBER
+          <Scissors /> AURA BARBERÍA
         </a>
         <div className={card}>
           <p className="eyebrow">TU ESPACIO DE TRABAJO</p>
@@ -198,7 +198,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
     <div className="min-h-screen">
       <header className="border-b border-[#dfe4d9] bg-white px-6 py-5 flex items-center justify-between">
         <a href="/" className="font-bold flex items-center gap-2">
-          <Scissors className="text-[#52754c]" /> STUDIO BARBER{" "}
+          <Scissors className="text-[#52754c]" /> AURA BARBERÍA{" "}
           <span className="hidden sm:inline text-xs font-normal muted ml-4">
             ESPACIO DEL BARBERO
           </span>

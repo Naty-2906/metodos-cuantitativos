@@ -73,3 +73,141 @@ h3 {
 ::selection {
   background: #dce8c9;
 }
+
+/* Aura: East Coast editorial identity, scoped to the public portal. */
+.aura-site {
+  background: #f4f1eb;
+  color: #22201d;
+  min-height: 100vh;
+}
+.aura-site .muted {
+  color: #746d63;
+}
+.aura-site .eyebrow {
+  color: #977345;
+  font-size: 10px;
+  letter-spacing: 2.4px;
+}
+.aura-site .primary {
+  background: #242322;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+.aura-site .primary:hover:not(:disabled) {
+  background: #765b37;
+}
+.aura-site .card {
+  border-color: #dbd4c8;
+  border-radius: 8px;
+}
+.aura-site input {
+  border-color: #d8cebe;
+  border-radius: 5px;
+}
+.aura-site input:focus {
+  outline-color: #a68555;
+}
+.aura-site a:focus-visible,
+.aura-site button:focus-visible {
+  outline: 2px solid #b28a57;
+  outline-offset: 4px;
+}
+.aura-outline {
+  border: 1px solid #bdb09d;
+  padding: 12px 18px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.aura-outline:hover {
+  background: #e8dfd1;
+}
+.aura-headline {
+  font-family: Impact, "Arial Narrow", Arial, sans-serif;
+  font-size: clamp(2.7rem, 5.2vw, 4.8rem);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  font-weight: 500;
+}
+.aura-headline span {
+  color: #a17e4f;
+}
+.aura-city {
+  background: #232323;
+  color: #bda27e;
+  min-height: 300px;
+  border-radius: 5px;
+  padding: 26px;
+  position: relative;
+  overflow: hidden;
+}
+.aura-city-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(#ffffff05 1px, transparent 1px),
+    linear-gradient(90deg, #ffffff05 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.aura-skyline {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 100%;
+  color: #47413a;
+  opacity: 0.8;
+}
+.aura-instagram {
+  margin-top: 72px;
+  background: #242322;
+  color: #f4f1eb;
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  padding: 48px;
+}
+.aura-instagram .eyebrow {
+  color: #c6a477;
+}
+.aura-instagram-link {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 20px;
+  border: 1px solid #74634c;
+  border-radius: 4px;
+  font-size: 14px;
+}
+.aura-instagram-link:hover {
+  background: #39332b;
+}
+.aura-instagram-preview {
+  border: 1px solid #52483b;
+  border-radius: 8px;
+  padding: 16px;
+  min-width: 0;
+}
+.aura-instagram .primary {
+  background: #c6a477;
+  color: #211c15;
+}
+.aura-instagram .primary:hover {
+  background: #dfbf95;
+}
+@media (max-width: 767px) {
+  .aura-instagram {
+    grid-template-columns: 1fr;
+    padding: 24px;
+    gap: 28px;
+    margin-top: 40px;
+  }
+  .aura-headline {
+    font-size: clamp(2.6rem, 10vw, 4rem);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aura-site * {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

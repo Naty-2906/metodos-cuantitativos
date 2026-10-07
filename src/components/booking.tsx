@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import InstagramGallery from "./instagram-gallery";
 import {
   Scissors,
   ArrowUpRight,
@@ -102,26 +103,29 @@ export default function Booking() {
     }
   }
   return (
-    <>
-      <header className="border-b border-[#e0e5db] bg-[#f7f8f5]">
+    <div className="aura-site">
+      <header className="border-b border-[#d9d3c8] bg-[#f4f1eb]">
         <div className="mx-auto max-w-7xl px-6 py-5 flex items-center justify-between">
           <a
             href="/"
             className="flex items-center gap-3 font-bold tracking-tight text-lg"
           >
-            <span className="bg-[#294e3b] text-white rounded-xl p-2">
+            <span className="bg-[#202020] text-white rounded-xl p-2">
               <Scissors size={20} />
             </span>
-            STUDIO<span className="font-normal text-[#7c8577]">BARBER</span>
+            AURA<span className="font-normal text-[#756f65]">BARBERÍA</span>
           </a>
           <nav className="hidden md:flex items-center gap-8 text-sm">
             <a href="#reservar">Reservar una cita</a>
+            <a href="#instagram" className="muted">
+              Instagram
+            </a>
             <a href="#experiencia" className="muted">
-              La experiencia
+              Nuestro estilo
             </a>
             <a
               href="/admin"
-              className="border border-[#ccd5c7] rounded-full px-5 py-2 flex gap-2 items-center"
+              className="border border-[#cfc7ba] rounded-full px-5 py-2 flex gap-2 items-center"
             >
               Mi negocio <ArrowUpRight size={15} />
             </a>
@@ -135,40 +139,66 @@ export default function Booking() {
         <div className="grid lg:grid-cols-[1fr_1.13fr] gap-12 lg:gap-20 items-start">
           <section id="experiencia">
             <div className="eyebrow flex gap-2 items-center">
-              <span className="w-2 h-2 bg-[#91a774] rounded-full" /> TU TIEMPO.
-              TU ESTILO.
+              <span className="w-2 h-2 bg-[#b28a57] rounded-full" /> NEW YORK
+              ATTITUDE. CHILEAN SOUL.
             </div>
-            <h1 className="text-5xl md:text-6xl leading-[1.08] font-medium mt-6">
-              Un buen corte.
+            <h1 className="aura-headline mt-6">
+              ESTILO DE CALLE.
               <br />
-              Un momento
+              <span>PRECISIÓN</span>
               <br />
-              <span className="text-[#678264]">para ti.</span>
+              DE CABALLERO.
             </h1>
-            <p className="muted text-base leading-7 mt-6 max-w-sm">
-              El cuidado de siempre, con la comodidad de hoy. Elige tu servicio
-              y encuentra tu próximo espacio en nuestra silla.
+            <p className="muted text-base leading-7 mt-6 max-w-md">
+              La energía de New York y New Jersey, con el sello de Aura. Cortes
+              limpios, detalles cuidados y una atención a tu medida.
             </p>
-            <div className="mt-8 rounded-[24px] h-64 md:h-72 overflow-hidden relative bg-[#27382e] p-8 text-white flex flex-col justify-between">
-              <div className="absolute right-[-25px] top-[-20px] w-72 h-72 rounded-full border-[35px] border-[#63806b]/20" />
-              <Scissors
-                size={76}
-                strokeWidth={0.8}
-                className="relative rotate-[-25deg] text-[#c5d2bc]"
-              />
-              <div className="relative">
-                <p className="text-[10px] tracking-[3px] text-[#b4c3ac] mb-3">
-                  EL ARTE DE CUIDAR LOS DETALLES
+            <div className="flex flex-wrap gap-3 mt-6">
+              <a
+                href="#reservar"
+                className="primary inline-flex items-center gap-3"
+              >
+                Reserva tu estilo <ArrowRight size={16} />
+              </a>
+              <a
+                href="#instagram"
+                className="aura-outline inline-flex items-center gap-2"
+              >
+                Ver nuestros cortes <ArrowUpRight size={16} />
+              </a>
+            </div>
+            <div className="aura-city mt-8">
+              <div className="aura-city-grid" aria-hidden="true" />
+              <div className="flex justify-between relative z-10 text-[10px] tracking-[3px] uppercase">
+                <span>Aura / Barber culture</span>
+                <span>NY × NJ</span>
+              </div>
+              <svg
+                viewBox="0 0 600 180"
+                className="aura-skyline"
+                aria-hidden="true"
+              >
+                <path
+                  d="M0 180V125H35V96H63V145H84V67H115V180M127 180V102H157V47H173V28H179V10H183V28H190V47H207V180M222 180V117H251V83H275V180M290 180V68H319V37H329V0H333V37H344V68H365V180M382 180V98H408V135H427V78H457V180M474 180V108H507V54H533V117H552V90H578V138H600V180"
+                  fill="currentColor"
+                />
+                <path
+                  d="M0 170Q120 55 245 170M0 143H245M10 137V180M40 113V180M70 96V180M100 88V180M130 90V180M160 103V180M190 125V180M220 153V180"
+                  fill="none"
+                  stroke="#ba9562"
+                  strokeWidth="2"
+                />
+              </svg>
+              <div className="relative z-10 mt-24">
+                <p className="text-[10px] tracking-[3px] mb-2">
+                  INSPIRACIÓN EAST COAST
                 </p>
-                <p className="text-2xl tracking-tight">
-                  Más que un corte.
+                <p className="text-3xl font-semibold uppercase leading-none">
+                  The city moves.
                   <br />
-                  Tu mejor versión.
+                  <span className="text-[#c6a477]">Your style stays.</span>
                 </p>
               </div>
-              <span className="absolute right-7 bottom-7 text-xs text-[#b4c3ac]">
-                EST. 2026
-              </span>
             </div>
             <div className="grid grid-cols-3 gap-3 mt-6 pb-8 text-xs muted">
               <span className="flex items-center gap-2">
@@ -184,7 +214,7 @@ export default function Booking() {
           </section>
           <section
             id="reservar"
-            className="card shadow-[0_12px_60px_-30px_#42513d33] md:p-8"
+            className="card shadow-[0_12px_60px_-30px_#201c1633] md:p-8"
           >
             <div className="flex items-start justify-between">
               <div>
@@ -193,12 +223,12 @@ export default function Booking() {
                   Reserva tu próxima cita
                 </h2>
               </div>
-              <CalendarDays className="text-[#7c9272]" size={24} />
+              <CalendarDays className="text-[#9b784b]" size={24} />
             </div>
             <p className="muted text-sm mt-2">
               Tres pasos sencillos. Un estilo que se siente bien.
             </p>
-            <div className="flex justify-between gap-2 mt-8 mb-8 border-b border-[#e8ece3] pb-6">
+            <div className="flex justify-between gap-2 mt-8 mb-8 border-b border-[#e4ddd2] pb-6">
               {["Servicio", "Horario", "Tus datos"].map((label, i) => (
                 <button
                   key={label}
@@ -207,7 +237,7 @@ export default function Booking() {
                   className={`flex items-center gap-2 text-xs ${step === i + 1 ? "font-semibold" : "muted"}`}
                 >
                   <span
-                    className={`w-7 h-7 rounded-full flex items-center justify-center ${step >= i + 1 ? "bg-[#294e3b] text-white" : "bg-[#eef1e9]"}`}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center ${step >= i + 1 ? "bg-[#202020] text-white" : "bg-[#e9e3d9]"}`}
                   >
                     {step > i + 1 ? <Check size={14} /> : i + 1}
                   </span>
@@ -217,7 +247,7 @@ export default function Booking() {
             </div>
             {done ? (
               <div className="text-center py-12">
-                <span className="inline-flex rounded-full p-5 bg-[#edf3e5] text-[#294e3b]">
+                <span className="inline-flex rounded-full p-5 bg-[#eee5d8] text-[#202020]">
                   <Check size={32} />
                 </span>
                 <h3 className="text-3xl mt-5">¡Nos vemos pronto!</h3>
@@ -242,16 +272,16 @@ export default function Booking() {
                         <button
                           key={s.id}
                           onClick={() => setService(s)}
-                          className={`w-full text-left rounded-2xl border p-4 flex items-center gap-4 ${service?.id === s.id ? "border-[#52754c] bg-[#f2f6ed] ring-1 ring-[#52754c]" : "border-[#e1e6db] hover:bg-[#f7f8f5]"}`}
+                          className={`w-full text-left rounded-2xl border p-4 flex items-center gap-4 ${service?.id === s.id ? "border-[#997343] bg-[#f3eadb] ring-1 ring-[#997343]" : "border-[#dcd4c7] hover:bg-[#f4f1eb]"}`}
                         >
-                          <span className="bg-[#edf1e6] text-[#62785a] rounded-xl p-3">
+                          <span className="bg-[#ece4d7] text-[#8b683e] rounded-xl p-3">
                             <Scissors size={22} />
                           </span>
                           <div className="flex-1">
                             <p className="font-semibold text-sm">
                               {s.name}
                               {i === 2 && (
-                                <span className="text-[9px] bg-[#e5ecd8] rounded ml-2 px-2 py-1 text-[#61714d]">
+                                <span className="text-[9px] bg-[#e6d6ba] rounded ml-2 px-2 py-1 text-[#795b34]">
                                   EL FAVORITO
                                 </span>
                               )}
@@ -265,7 +295,7 @@ export default function Booking() {
                             {money(s.price)}
                           </span>
                           <span
-                            className={`w-4 h-4 rounded-full border ${service?.id === s.id ? "border-4 border-[#52754c]" : "border-[#d2dacb]"}`}
+                            className={`w-4 h-4 rounded-full border ${service?.id === s.id ? "border-4 border-[#997343]" : "border-[#cfc4b3]"}`}
                           />
                         </button>
                       ))}
@@ -294,7 +324,7 @@ export default function Booking() {
                         <button
                           key={s}
                           onClick={() => setSlot(s)}
-                          className={`border rounded-xl py-3 text-sm ${slot === s ? "bg-[#294e3b] text-white" : "border-[#e1e6db]"}`}
+                          className={`border rounded-xl py-3 text-sm ${slot === s ? "bg-[#202020] text-white" : "border-[#dcd4c7]"}`}
                         >
                           {time(s)}
                         </button>
@@ -318,7 +348,7 @@ export default function Booking() {
                 )}
                 {step === 3 && (
                   <form onSubmit={submit}>
-                    <div className="bg-[#f2f5ed] rounded-xl p-4 mb-5 text-sm">
+                    <div className="bg-[#f2eadd] rounded-xl p-4 mb-5 text-sm">
                       <strong>{service?.name}</strong>
                       <p className="muted mt-1">
                         {date} · {time(slot)} · {money(service?.price ?? 0)}
@@ -376,17 +406,18 @@ export default function Booking() {
                 {error}
               </p>
             )}
-            <div className="text-center muted text-xs pt-6 mt-6 border-t border-[#eef0e9] flex justify-center gap-2">
+            <div className="text-center muted text-xs pt-6 mt-6 border-t border-[#e3ddd3] flex justify-center gap-2">
               <ShieldCheck size={14} /> Tu reserva, sin cuentas ni
               complicaciones.
             </div>
           </section>
         </div>
-        <footer className="border-t border-[#e0e5db] mt-14 py-6 flex justify-between text-xs muted">
-          <span>© 2026 Studio Barber</span>
-          <span>Hecho con dedicación. Como tu próximo corte.</span>
+        <InstagramGallery />
+        <footer className="border-t border-[#d9d3c8] mt-14 py-6 flex justify-between text-xs muted">
+          <span>© 2026 Aura Barbería</span>
+          <span>Cultura urbana. Oficio de barbería.</span>
         </footer>
       </main>
-    </>
+    </div>
   );
 }
