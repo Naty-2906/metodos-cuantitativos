@@ -1,0 +1,96 @@
+generator client {
+ provider = "prisma-client-js"
+ engineType = "client"
+}
+datasource db {
+ provider = "postgresql"
+}
+enum Role {
+ BARBER_ADMIN
+}
+enum AppointmentStatus {
+ BOOKED
+ COMPLETED
+ CANCELLED
+ NO_SHOW
+}
+enum PaymentMethod {
+ CASH
+ TRANSFER
+}
+enum ExpenseCategory {
+ SUPPLIES
+ RENT
+ UTILITIES
+ TOOLS
+ MARKETING
+ OTHER
+}
+model User {
+ id String @id @default(uuid()) @db.Uuid
+ role Role @default(BARBER_ADMIN)
+ singleton Int @unique @default(1)
+}
+model Service {
+ id String @id @default(uuid()) @db.Uuid
+ name String
+ duration Int
+ price Int
+ active Boolean @default(true)
+ appointments Appointment[]
+}
+model Appointment {
+ id String @id @default(uuid()) @db.Uuid
+ serviceId String @db.Uuid
+ service Service @relation(fields: [serviceId], references: [id])
+ name String
+ phone String
+ email String
+ start DateTime @db.Timestamptz(3)
+ end DateTime @db.Timestamptz(3)
+ price Int
+ status AppointmentStatus @default(BOOKED)
+ payment Payment?
+ createdAt DateTime @default(now())
+ @@index([start, status])
+}
+model Payment {
+ id String @id @default(uuid()) @db.Uuid
+ appointmentId String? @unique @db.Uuid
+ appointment Appointment? @relation(fields: [appointmentId], references: [id])
+ amount Int
+ method PaymentMethod @default(CASH)
+ description String
+ date DateTime @default(now()) @db.Timestamptz(3)
+ @@index([date])
+}
+model Expense {
+ id String @id @default(uuid()) @db.Uuid
+ category ExpenseCategory
+ amount Int
+ description String
+ date DateTime @db.Timestamptz(3)
+ @@index([date])
+}
+model BusinessConfig {
+ id Int @id @default(1)
+ name String @default("Studio Barber")
+ timezone String @default("America/Santiago")
+ currency String @default("USD")
+ open String @default("10:00")
+ close String @default("20:00")
+ workingDays Int[] @default([1, 2, 3, 4, 5, 6])
+}
+model Block {
+ id String @id @default(uuid()) @db.Uuid
+ start DateTime @db.Timestamptz(3)
+ end DateTime @db.Timestamptz(3)
+ reason String
+ @@index([start, end])
+}
+
+model RateLimit {
+ key String @id
+ count Int
+ window DateTime @db.Timestamptz(3)
+}

@@ -1,0 +1,75 @@
+@import "tailwindcss";
+:root {
+  color-scheme: light;
+  --ink: #202822;
+  --paper: #f7f8f5;
+  --green: #294e3b;
+}
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+}
+button,
+a,
+input,
+select {
+  transition: all 0.18s;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+input,
+select {
+  width: 100%;
+  border: 1px solid #dce1d9;
+  border-radius: 12px;
+  padding: 12px;
+  background: white;
+}
+input:focus,
+select:focus {
+  outline: 2px solid #73937c;
+}
+label {
+  font-size: 13px;
+  color: #667367;
+  display: block;
+  margin-bottom: 8px;
+}
+.card {
+  background: white;
+  border: 1px solid #e3e7df;
+  border-radius: 20px;
+  padding: 24px;
+}
+.primary {
+  background: #294e3b;
+  color: white;
+  border-radius: 12px;
+  padding: 13px 22px;
+  font-weight: 600;
+}
+.muted {
+  color: #778176;
+}
+.eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 700;
+  color: #6b806e;
+}
+h1,
+h2,
+h3 {
+  letter-spacing: -0.04em;
+}
+::selection {
+  background: #dce8c9;
+}
