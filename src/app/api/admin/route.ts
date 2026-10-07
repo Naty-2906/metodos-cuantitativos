@@ -1,3 +1,4 @@
+import { ensureFinanceSchema } from "@/lib/ensure-finance-schema";
 import {
   documentSchema,
   documentsReady,
@@ -103,6 +104,7 @@ export async function GET() {
   if (!(await authorized()))
     return NextResponse.json({ error: "Acceso restringido" }, { status: 401 });
   try {
+    await ensureFinanceSchema();
     const [appointments, expenses, payments, blocks, config] =
       await Promise.all([
         db.appointment.findMany({

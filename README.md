@@ -87,7 +87,13 @@ En **Registrar operación** aparece el estado de resultados mensual, su desglose
 el balance general de los registros y el balance de comprobación. Los asientos
 se calculan por devengo: pagar una deuda no vuelve a generar un gasto.
 
-En una base Supabase existente, ejecutar **prisma/actualizar-contabilidad.sql**
+El panel autenticado del dueño aplica automáticamente esta actualización al
+entrar, bajo bloqueo y en una transacción, utilizando la conexión existente.
+No se modifica la agenda ni las reservas, y la actualización es repetible. Si el
+rol de base de datos no tiene permisos para crear tablas, se conserva la instalación
+existente y se puede aplicar manualmente.
+
+En una base Supabase existente, como alternativa ejecutar **prisma/actualizar-contabilidad.sql**
 completo en SQL Editor. Es una actualización repetible que conserva los datos y
 activa tanto el libro diario como los documentos tributarios. Para bases nuevas,
 las migraciones habituales incluyen las mismas tablas. Si falta esta actualización,
