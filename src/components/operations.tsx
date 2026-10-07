@@ -18,6 +18,7 @@ import {
   type JournalView,
   type Operation,
 } from "@/lib/accounting";
+import { isVoided } from "@/lib/reports";
 import ReceiptScanner from "./receipt-scanner";
 type Props = {
   finance: { ready: boolean; entries: JournalView[] };
@@ -92,7 +93,7 @@ export default function Operations({
   const request = useRef<{ payload: string; id: string } | null>(null),
     saving = useRef(false);
   const pending = finance.entries.filter(
-    (e) => e.pendingAccount && !e.settledAt,
+    (e) => e.pendingAccount && !e.settledAt && !isVoided(e, finance.entries),
   );
   const totals = financialTotals(finance.entries);
   const kind = (
@@ -514,7 +515,10 @@ export default function Operations({
                   className="flex flex-wrap justify-between gap-3 border-b pb-3 text-sm"
                 >
                   <div>
-                    <p className="font-semibold">{e.description}</p>
+                    <p className="font-semibold">
+                      {e.description}
+                      {isVoided(e, finance.entries) ? " · ANULADA" : ""}
+                    </p>
                     <p className="muted text-xs mt-1">
                       {kindNames[e.kind as keyof typeof kindNames] ?? e.kind} ·{" "}
                       {formatInTimeZone(

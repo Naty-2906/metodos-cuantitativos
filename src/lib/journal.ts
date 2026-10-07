@@ -143,6 +143,12 @@ export async function settlePending(
   const original = await tx.journalEntry.findUniqueOrThrow({
     where: { id: input.id },
   });
+  if (
+    await tx.journalEntry.findUnique({
+      where: { sourceKey: "reversal:" + original.id },
+    })
+  )
+    throw Error("La operación no admite cambios");
   if (!original.pendingAccount)
     throw Error("La operación no tiene un saldo pendiente");
   if (new Date(input.date) < original.date)

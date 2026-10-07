@@ -80,3 +80,48 @@ Los indicadores de Resumen reconocen ingresos y gastos cuando se registra la ope
 **Escanear comprobante:** el formulario acepta JPG/PNG/WebP de hasta 10 MB, incluyendo cámara del móvil. Tesseract.js lee la foto localmente y sugiere total y fecha; no envía ni conserva la foto. La primera carga necesita internet para descargar el lector/modelo de español desde los CDN del paquete. Los datos siempre son editables y requieren confirmación. No se reconoce PDF; una foto borrosa o un fallo de descarga mantiene disponible el ingreso manual.
 
 Validación: `npm test` cubre asientos, separación de capital/ganancia, pendientes y extracción de datos; `npm run test:finance` prueba operaciones y restricciones contra servidor y BD **locales**, con limpieza automática de datos de prueba. `npm run test:smoke` verifica reservas/agenda y que una cita completada no genere ingresos duplicados.
+
+### Reportes contables, IVA y correcciones
+
+En **Registrar operación** aparece el estado de resultados mensual, su desglose,
+el balance general de los registros y el balance de comprobación. Los asientos
+se calculan por devengo: pagar una deuda no vuelve a generar un gasto.
+
+En una base Supabase existente, ejecutar **prisma/actualizar-contabilidad.sql**
+completo en SQL Editor. Es una actualización repetible que conserva los datos y
+activa tanto el libro diario como los documentos tributarios. Para bases nuevas,
+las migraciones habituales incluyen las mismas tablas. Si falta esta actualización,
+la reserva pública sigue funcionando; el registro documental de IVA se deshabilita.
+
+**Documentar o corregir una operación** permite asociar folio, RUT y el importe
+real de IVA que figura en el documento. No se presume que el negocio esté afecto
+al IVA: su régimen permanece por confirmar. El crédito fiscal requiere factura,
+RUT válido y confirmación explícita de elegibilidad por el dueño. El IVA no
+recuperable permanece dentro del costo; el IVA recuperable se registra como activo
+y el débito de ventas como pasivo. Los respaldos sin IVA confirmado siguen
+marcados para revisión. Honorarios, retenciones, remanentes anteriores, proporcionalidad,
+depreciaciones, inventario y saldos iniciales necesitan tratamiento y revisión
+profesional antes de cerrar una contabilidad tributaria completa.
+
+**Anular operación y su pago** crea asientos inversos en las fechas originales y
+conserva el motivo y la fecha de creación de la corrección. Es idempotente; revierte
+también el pago de un pendiente y el IVA. No borra el historial ni modifica el
+estado de una cita completada, ni anula documentos emitidos ante el SII. Después de
+anular se puede registrar la operación correcta. No debe usarse para alterar un
+período ya declarado sin la revisión del contador.
+
+El **Excel (.xlsx)** protegido por sesión incluye instrucciones, estado de
+resultados, balance general, IVA, balance de comprobación, libro diario y documentos.
+Los importes son números en la moneda indicada, y los textos se exportan como texto,
+no como fórmulas. Es un respaldo para el contador: **no es un archivo oficial para
+cargar al SII, ni una declaración F29/F22, DTE o reemplazo del RCV**. Comparar los
+montos con el Registro de Compras y Ventas antes de declarar. La diferencia de IVA
+mostrada no calcula por sí sola el impuesto final a pagar.
+
+Validación local adicional: `npm run test:reports` comprueba los asientos de IVA,
+RUT inválidos, anulaciones repetidas con pagos asociados y la apertura del Excel
+generado. Todas las pruebas HTTP rechazan bases o aplicaciones remotas.
+
+La página pública incorpora ilustraciones originales en SVG de una silla, tijeras
+y poste de barbería rojo/blanco/azul, junto a la galería de Instagram existente.
+Las ilustraciones no representan fotografías reales del local.

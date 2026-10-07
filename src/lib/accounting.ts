@@ -1,5 +1,7 @@
 import { z } from "zod";
 export const accountNames = {
+  VAT_INPUT: "IVA crédito fiscal registrado",
+  VAT_OUTPUT: "IVA débito fiscal registrado",
   LEGACY_FUNDS: "Pago histórico sin medio registrado",
   CASH: "Caja / efectivo",
   BANK: "Banco / transferencias",
@@ -172,6 +174,13 @@ export type JournalView = {
   pendingAccount: string | null;
   settledAt: string | null;
   parentId: string | null;
+  document?: {
+    type: string;
+    folio: string;
+    rut: string;
+    vat: number;
+    recoverable: boolean;
+  };
   lines: { account: string; debit: number; credit: number }[];
 };
 export function financialTotals(entries: Pick<JournalView, "lines">[]) {

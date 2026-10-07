@@ -104,6 +104,14 @@ export default function Booking() {
   }
   return (
     <div className="aura-site">
+      <div className="barber-ribbon" aria-hidden="true" />
+      <div
+        className="barber-pole"
+        role="img"
+        aria-label="Poste tradicional de barbería rojo, blanco y azul"
+      >
+        <span />
+      </div>
       <header className="border-b border-[#d9d3c8] bg-[#f4f1eb]">
         <div className="mx-auto max-w-7xl px-6 py-5 flex items-center justify-between">
           <a
@@ -200,6 +208,13 @@ export default function Booking() {
                 </p>
               </div>
             </div>
+            <img
+              src="/barber-culture.svg"
+              width="900"
+              height="260"
+              alt="Ilustración de silla clásica, tijeras y poste de barbería rojo, blanco y azul"
+              className="w-full rounded-2xl mt-6"
+            />
             <div className="grid grid-cols-3 gap-3 mt-6 pb-8 text-xs muted">
               <span className="flex items-center gap-2">
                 <ShieldCheck size={17} /> Sin registro

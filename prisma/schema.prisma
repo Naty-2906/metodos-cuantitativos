@@ -116,6 +116,7 @@ model JournalEntry {
  parentId String? @unique @db.Uuid
  parent JournalEntry? @relation("Settlement",fields:[parentId],references:[id],onDelete:Restrict)
  settlement JournalEntry? @relation("Settlement")
+ document JournalDocument?
  lines JournalLine[]
  @@index([date])
 }
@@ -128,4 +129,15 @@ model JournalLine {
  credit Int @default(0)
  @@index([entryId])
  @@index([account])
+}
+
+model JournalDocument {
+ entryId String @id @db.Uuid
+ entry JournalEntry @relation(fields:[entryId],references:[id],onDelete:Cascade)
+ type String
+ folio String
+ rut String
+ vat Int
+ recoverable Boolean @default(false)
+ createdAt DateTime @default(now()) @db.Timestamptz
 }

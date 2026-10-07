@@ -1,4 +1,11 @@
 import {
+  documentSchema,
+  documentsReady,
+  documents,
+  annotate,
+  reverse,
+} from "@/lib/finance-documents";
+import {
   journalReady,
   importLegacy,
   writeOperation,
@@ -21,6 +28,12 @@ const interval = z
   })
   .refine((v) => new Date(v.start) < new Date(v.end), "Rango inválido");
 const action = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("document"), document: documentSchema }),
+  z.object({
+    action: z.literal("reverse"),
+    id: z.string().uuid(),
+    reason: z.string().trim().min(5).max(180),
+  }),
   z.object({ action: z.literal("operation"), operation: operationSchema }),
   z.object({
     action: z.literal("settle"),
@@ -109,12 +122,18 @@ export async function GET() {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
         if (!(await journalReady(tx))) return { ready: false, entries: [] };
         await importLegacy(tx, config.currency);
+        const docs = await documents(tx);
+        const entries = await tx.journalEntry.findMany({
+          include: { lines: true },
+          orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+        });
         return {
           ready: true,
-          entries: await tx.journalEntry.findMany({
-            include: { lines: true },
-            orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-          }),
+          documentsReady: await documentsReady(tx),
+          entries: entries.map((e) => ({
+            ...e,
+            document: docs.find((d) => d.entryId === e.id),
+          })),
         };
       },
       { timeout: 20000 },
@@ -125,8 +144,13 @@ export async function GET() {
         .filter((l) => l.account.startsWith("REVENUE_"))
         .reduce((n, l) => n + l.credit - l.debit, 0);
       if (!amount) return [];
-      const old = e.sourceKey.startsWith("legacy:payment:")
-        ? paymentById.get(e.sourceKey.slice("legacy:payment:".length))
+      const source = e.sourceKey.startsWith("reversal:")
+        ? (finance.entries.find(
+            (x) => x.id === e.sourceKey.slice("reversal:".length),
+          )?.sourceKey ?? e.sourceKey)
+        : e.sourceKey;
+      const old = source.startsWith("legacy:payment:")
+        ? paymentById.get(source.slice("legacy:payment:".length))
         : undefined;
       return [
         {
@@ -205,6 +229,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     const v = action.parse(body);
+    if (v.action === "document" || v.action === "reverse")
+      await db.$transaction(
+        async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
+          if (v.action === "document") await annotate(tx, v.document);
+          else await reverse(tx, v.id, v.reason);
+        },
+        { timeout: 20000 },
+      );
     if (v.action === "operation" || v.action === "settle")
       await db.$transaction(
         async (tx) => {
@@ -378,6 +411,12 @@ export async function POST(req: NextRequest) {
             ? "Revisa los datos del formulario"
             : e instanceof Error &&
                 [
+                  "Primero aplica el SQL de reportes",
+                  "La operación no admite cambios",
+                  "Esta factura ya está asociada a otra operación vigente",
+                  "El documento ya está registrado; anula y registra la corrección",
+                  "Revisa el IVA y la moneda de la operación",
+                  "Anula la operación original, incluyendo su pago",
                   "No se puede cambiar la moneda con operaciones registradas",
                   "Primero aplica la actualización SQL de operaciones en Supabase",
                   "El capital a pagar supera los préstamos registrados",

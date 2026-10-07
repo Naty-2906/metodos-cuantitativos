@@ -211,3 +211,9 @@ h3 {
     scroll-behavior: auto !important;
   }
 }
+
+/* Traditional barber colors, paired with Aura's restrained urban palette. */
+.barber-ribbon {height:6px;background:repeating-linear-gradient(125deg,#a62b32 0 22px,#faf8f4 22px 44px,#214f83 44px 66px,#faf8f4 66px 88px);}
+.barber-pole {position:absolute;top:140px;right:24px;width:28px;height:100px;border:3px solid #242424;border-radius:18px;background:#eee;box-shadow:0 5px 15px #0002;overflow:hidden;pointer-events:none;}
+.barber-pole span {display:block;height:100%;background:repeating-linear-gradient(135deg,#a62b32 0 14px,#fff 14px 28px,#214f83 28px 42px,#fff 42px 56px);}
+@media(max-width:768px){.barber-pole{top:108px;right:16px;width:20px;height:65px;}}

@@ -1,4 +1,5 @@
 "use client";
+import FinancialReports from "./financial-reports";
 import Operations from "./operations";
 import type { JournalView } from "@/lib/accounting";
 import ScheduleSettings from "./schedule-settings";
@@ -35,7 +36,7 @@ type Transaction = {
   appointment?: { service: { name: string } };
 };
 type Data = {
-  finance: { ready: boolean; entries: JournalView[] };
+  finance: { documentsReady?: boolean; ready: boolean; entries: JournalView[] };
   schedule: ScheduleDates;
   scheduleReady: boolean;
   services: { id: string; name: string; duration: number; active: boolean }[];
@@ -373,7 +374,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
                             <div
                               className="bg-[#739167] h-2 rounded-full"
                               style={{
-                                width: `${income ? (amount / income) * 100 : 0}%`,
+                                width: `${income > 0 ? Math.max(0, Math.min(100, (amount / income) * 100)) : 0}%`,
                               }}
                             />
                           </div>
@@ -611,13 +612,22 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
               </>
             )}
             {tab === "Registrar operación" && (
-              <Operations
-                finance={data.finance}
-                timezone={zone}
-                currency={data.config.currency}
-                busy={busy}
-                send={send}
-              />
+              <>
+                <FinancialReports
+                  finance={data.finance}
+                  timezone={zone}
+                  currency={data.config.currency}
+                  busy={busy}
+                  send={send}
+                />
+                <Operations
+                  finance={data.finance}
+                  timezone={zone}
+                  currency={data.config.currency}
+                  busy={busy}
+                  send={send}
+                />
+              </>
             )}
             {tab === "Configuración" && (
               <ScheduleSettings
