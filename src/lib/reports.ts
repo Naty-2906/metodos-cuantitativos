@@ -98,17 +98,88 @@ export function report(
               ? l.credit - l.debit
               : l.debit - l.credit),
         );
+  const accountTotal = (account: string) => resultAccounts.get(account) ?? 0;
+  const serviceIncome = accountTotal("REVENUE_SERVICE"),
+    productIncome = accountTotal("REVENUE_PRODUCT");
+  const suppliesCost = accountTotal("EXPENSE_SUPPLIES"),
+    operatingExpenses = accountTotal("EXPENSE_OPERATING"),
+    interestExpenses = accountTotal("EXPENSE_INTEREST");
+  const netIncome = serviceIncome + productIncome,
+    grossProfit = netIncome - suppliesCost,
+    operatingProfit = grossProfit - operatingExpenses;
+  const incomeStatement = [
+    {
+      label: "Ingresos por servicios",
+      amount: serviceIncome,
+      section: "income",
+    },
+    {
+      label: "Ingresos por productos",
+      amount: productIncome,
+      section: "income",
+    },
+    {
+      label: "Total de ingresos netos",
+      amount: netIncome,
+      section: "subtotal",
+    },
+    {
+      label: "Costo de insumos consumidos",
+      amount: -suppliesCost,
+      section: "cost",
+    },
+    { label: "Resultado bruto", amount: grossProfit, section: "subtotal" },
+    {
+      label: "Gastos de funcionamiento",
+      amount: -operatingExpenses,
+      section: "expense",
+    },
+    {
+      label: "Resultado operacional",
+      amount: operatingProfit,
+      section: "subtotal",
+    },
+    {
+      label: "Intereses y gastos financieros registrados",
+      amount: -interestExpenses,
+      section: "finance",
+    },
+    {
+      label: "Resultado antes de impuesto a la renta",
+      amount: operatingProfit - interestExpenses,
+      section: "result",
+    },
+  ];
   return {
+    incomeStatement,
     cashIn,
     cashOut,
     assets,
     liabilities,
     equity,
     balanceDifference: assets - liabilities - equity,
-    resultAccounts: [...resultAccounts].map(([account, amount]) => ({
-      account,
-      amount,
-    })),
+    resultAccounts: [...resultAccounts]
+      .sort(
+        (a, b) =>
+          [
+            "REVENUE_SERVICE",
+            "REVENUE_PRODUCT",
+            "EXPENSE_SUPPLIES",
+            "EXPENSE_OPERATING",
+            "EXPENSE_INTEREST",
+          ].indexOf(a[0]) -
+          [
+            "REVENUE_SERVICE",
+            "REVENUE_PRODUCT",
+            "EXPENSE_SUPPLIES",
+            "EXPENSE_OPERATING",
+            "EXPENSE_INTEREST",
+          ].indexOf(b[0]),
+      )
+      .map(([account, amount]) => ({
+        account,
+        amount,
+      })),
     period,
     totals: financialTotals(period),
     cumulative: financialTotals(through),

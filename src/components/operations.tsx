@@ -25,6 +25,8 @@ import {
   type Operation,
 } from "@/lib/accounting";
 import { isVoided } from "@/lib/reports";
+import InvoiceBreakdown from "./invoice-breakdown";
+import { invoiceFromTotal } from "@/lib/invoice";
 import ReceiptScanner from "./receipt-scanner";
 type Props = {
   finance: { ready: boolean; entries: JournalView[] };
@@ -178,6 +180,7 @@ export default function Operations({
   send,
   onViewLedger,
 }: Props) {
+  const [automaticVat, setAutomaticVat] = useState(false);
   const [docEnabled, setDocEnabled] = useState(false),
     [docType, setDocType] = useState("RECEIPT"),
     [folio, setFolio] = useState(""),
@@ -217,6 +220,7 @@ export default function Operations({
     setGroup(id);
     setDocEnabled(false);
     setRecoverable(false);
+    setAutomaticVat(false);
     setDate(today);
     setVariant(
       id === "SALE"
@@ -396,6 +400,34 @@ export default function Operations({
                   (!c.category || c.category === category),
               )?.title ?? groups.find((g) => g.id === group)?.title}
             </h3>
+            {["SUPPLIES", "EXPENSE", "ASSET"].includes(group) && (
+              <ReceiptScanner
+                currency={currency}
+                disabled={busy}
+                onBusyChange={setScanning}
+                onExtract={(fields) => {
+                  setAmount(
+                    fields.amount === undefined ? "" : String(fields.amount),
+                  );
+                  setDate(fields.date ?? today);
+                  setDocEnabled(true);
+                  setAutomaticVat(false);
+                  setDocType(fields.documentType ?? "RECEIPT");
+                  setFolio(fields.folio ?? "");
+                  setRut(fields.rut ?? "");
+                  setVat(fields.vat === undefined ? "" : String(fields.vat));
+                  setRecoverable(false);
+                  if (fields.description) setDescription(fields.description);
+                  if (fields.kind) {
+                    setGroup(fields.kind);
+                    setVariant(fields.kind);
+                  }
+                  if (fields.category) setCategory(fields.category);
+                  else if (fields.kind === "EXPENSE") setCategory("OTHER");
+                }}
+              />
+            )}
+
             <div className="grid lg:grid-cols-[1fr_1fr] gap-6">
               <div>
                 {group === "SALE" && (
@@ -445,57 +477,46 @@ export default function Operations({
                   </div>
                 ) : (
                   <>
-                    {["SUPPLIES", "EXPENSE", "ASSET"].includes(group) && (
-                      <ReceiptScanner
-                        currency={currency}
-                        disabled={busy}
-                        onBusyChange={setScanning}
-                        onExtract={(fields) => {
-                          setAmount(
-                            fields.amount === undefined
-                              ? ""
-                              : String(fields.amount),
-                          );
-                          setDate(fields.date ?? today);
-                          setDocEnabled(true);
-                          setDocType(fields.documentType ?? "RECEIPT");
-                          setFolio(fields.folio ?? "");
-                          setRut(fields.rut ?? "");
-                          setVat(
-                            fields.vat === undefined ? "" : String(fields.vat),
-                          );
-                          setRecoverable(false);
-                          if (fields.description)
-                            setDescription(fields.description);
-                          if (fields.kind) {
-                            setGroup(fields.kind);
-                            setVariant(fields.kind);
-                          }
-                          if (fields.category) setCategory(fields.category);
-                          else if (fields.kind === "EXPENSE")
-                            setCategory("OTHER");
-                        }}
-                      />
+                    {!docEnabled && (
+                      <>
+                        <label htmlFor="operation-amount">
+                          {kind === "DEBT_PAYMENT"
+                            ? "Total pagado (capital + intereses)"
+                            : docEnabled
+                              ? "Total de la boleta o factura (IVA incluido)"
+                              : "¿Cuánto?"}{" "}
+                          · {currency}
+                        </label>
+                        <input
+                          id="operation-amount"
+                          disabled={scanning || busy}
+                          type="number"
+                          value={amount}
+                          onChange={(e) => {
+                            setAmount(e.target.value);
+                            if (
+                              automaticVat &&
+                              docEnabled &&
+                              Number.isSafeInteger(Number(e.target.value)) &&
+                              Number(e.target.value) >= 0 &&
+                              Number(e.target.value) <= 20000000
+                            )
+                              setVat(
+                                String(
+                                  docType === "EXEMPT"
+                                    ? 0
+                                    : invoiceFromTotal(Number(e.target.value))
+                                        .vat,
+                                ),
+                              );
+                          }}
+                          required
+                          min={currency === "CLP" ? 1 : 0.01}
+                          max={20000000}
+                          step={currency === "CLP" ? 1 : 0.01}
+                        />
+                      </>
                     )}
-                    <label htmlFor="operation-amount">
-                      {kind === "DEBT_PAYMENT"
-                        ? "Total pagado (capital + intereses)"
-                        : docEnabled
-                          ? "Total de la boleta o factura (IVA incluido)"
-                          : "¿Cuánto?"}{" "}
-                      · {currency}
-                    </label>
-                    <input
-                      id="operation-amount"
-                      disabled={scanning || busy}
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      required
-                      min={currency === "CLP" ? 1 : 0.01}
-                      max={20000000}
-                      step={currency === "CLP" ? 1 : 0.01}
-                    />
                     {["SUPPLIES", "EXPENSE", "ASSET"].includes(group) && (
                       <div className="mt-4 space-y-3">
                         <label className="flex gap-2 items-center">
@@ -514,9 +535,11 @@ export default function Operations({
                             <label>
                               Tipo de documento
                               <select
+                                aria-label="Tipo de documento"
                                 value={docType}
                                 onChange={(e) => {
                                   setDocType(e.target.value);
+                                  setAutomaticVat(false);
                                   setRecoverable(false);
                                   if (e.target.value === "EXEMPT") setVat("0");
                                 }}
@@ -546,30 +569,16 @@ export default function Operations({
                                 onChange={(e) => setRut(e.target.value)}
                               />
                             </label>
-                            <label>
-                              IVA que aparece en el documento (opcional, CLP)
-                              <input
-                                type="number"
-                                min="0"
-                                step="1"
-                                required={recoverable}
-                                value={vat}
-                                onChange={(e) => setVat(e.target.value)}
-                              />
-                            </label>
-                            <p className="muted text-sm">
-                              Monto sin IVA:{" "}
-                              {amount && vat !== ""
-                                ? money(
-                                    Math.round(
-                                      (Number(amount) - Number(vat)) * 100,
-                                    ),
-                                    currency,
-                                  )
-                                : "Por confirmar"}
-                              . Si no conoces el IVA, déjalo vacío: se registra
-                              el total como gasto, sin descontar IVA.
-                            </p>
+                            <InvoiceBreakdown
+                              amount={amount}
+                              vat={vat}
+                              onAmount={setAmount}
+                              onVat={setVat}
+                              automatic={automaticVat}
+                              onAutomatic={setAutomaticVat}
+                              exempt={docType === "EXEMPT"}
+                              required={recoverable}
+                            />
                             {docType === "INVOICE" && (
                               <label className="flex gap-2 items-start">
                                 <input

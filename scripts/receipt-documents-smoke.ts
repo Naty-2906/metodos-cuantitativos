@@ -50,6 +50,56 @@ async function main() {
       ).status,
       200,
     );
+    const supportId = randomUUID();
+    ids.push(supportId);
+    assert.equal(
+      (
+        await post({
+          action: "operation",
+          operation: {
+            requestId: supportId,
+            kind: "SALE_SERVICE",
+            amount: 1190000,
+            date: new Date().toISOString(),
+            description: "Venta afecta con respaldo sin IVA",
+            state: "PAID",
+            method: "CASH",
+            interest: 0,
+          },
+        })
+      ).status,
+      200,
+    );
+    const supportSale = await db.journalEntry.findUniqueOrThrow({
+      where: { sourceKey: "manual:" + supportId },
+    });
+    assert.equal(
+      (
+        await post({
+          action: "document",
+          document: {
+            id: supportSale.id,
+            type: "SUPPORT",
+            folio: "",
+            rut: "",
+            vat: 0,
+            recoverable: false,
+          },
+        })
+      ).status,
+      200,
+    );
+    const retained = await db.journalLine.findMany({
+      where: { entryId: supportSale.id },
+    });
+    assert.equal(
+      retained.find((l) => l.account === "VAT_OUTPUT")?.credit,
+      190000,
+    );
+    assert.equal(
+      retained.find((l) => l.account === "REVENUE_SERVICE")?.credit,
+      1000000,
+    );
     const saleId = randomUUID();
     ids.push(saleId);
     const operation = {

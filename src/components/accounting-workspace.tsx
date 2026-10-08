@@ -5,9 +5,15 @@ import { BookOpen, Scale, FileText, Settings } from "lucide-react";
 import TaxSettings from "./tax-settings";
 import Operations from "./operations";
 import FinancialReports from "./financial-reports";
-import { accountNames, type JournalView } from "@/lib/accounting";
+import {
+  accountNames,
+  accountClassification,
+  type JournalView,
+} from "@/lib/accounting";
 import { report, isVoided } from "@/lib/reports";
 type Props = {
+  selectedMonth?: string;
+  onMonthChange?: (month: string) => void;
   taxProfile?: { ready: boolean; treatment: "UNKNOWN" | "AFFECTED" | "EXEMPT" };
   finance: { ready: boolean; documentsReady?: boolean; entries: JournalView[] };
   timezone: string;
@@ -27,9 +33,11 @@ export default function AccountingWorkspace(props: Props) {
   const [correction, setCorrection] = useState(""),
     [reason, setReason] = useState("");
   const [tab, setTab] = useState(tabs[0].name),
-    [month, setMonth] = useState(() =>
+    [localMonth, setLocalMonth] = useState(() =>
       formatInTimeZone(new Date(), props.timezone, "yyyy-MM"),
     );
+  const month = props.selectedMonth ?? localMonth,
+    setMonth = props.onMonthChange ?? setLocalMonth;
   const r = report(
     props.finance.entries,
     month,
@@ -62,7 +70,7 @@ export default function AccountingWorkspace(props: Props) {
         <button
           type="button"
           onClick={() => setTab("Configuración")}
-          className="accounting-tab"
+          className={`accounting-tab ${tab === "Configuración" ? "accounting-tab-active" : ""}`}
         >
           <Settings size={16} />
           Configuración
@@ -77,6 +85,11 @@ export default function AccountingWorkspace(props: Props) {
       )}
       {tab === "Registrar una operación" && (
         <>
+          <Operations
+            {...props}
+            onViewLedger={() => setTab("Libro diario (detalle)")}
+          />
+          <FinancialReports {...props} mode="documents" />
           <details className="card mb-6">
             <summary className="cursor-pointer font-semibold">
               Tu rutina para llevar los números sin complicarte
@@ -109,14 +122,15 @@ export default function AccountingWorkspace(props: Props) {
               negocio.
             </p>
           </details>
-          <Operations
-            {...props}
-            onViewLedger={() => setTab("Libro diario (detalle)")}
-          />
-          <FinancialReports {...props} mode="documents" />
         </>
       )}
-      {tab === "Ganancias y pérdidas" && <FinancialReports {...props} />}
+      {tab === "Ganancias y pérdidas" && (
+        <FinancialReports
+          {...props}
+          selectedMonth={month}
+          onMonthChange={setMonth}
+        />
+      )}
       {(tab === "Lo que tengo y debo" ||
         tab === "IVA" ||
         tab === "Libro diario (detalle)") && (
@@ -124,7 +138,13 @@ export default function AccountingWorkspace(props: Props) {
           <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
             <div>
               <p className="eyebrow">CONTABILIDAD SIMPLE</p>
-              <h2 className="text-3xl font-semibold mt-3">{tab}</h2>
+              <h2 className="text-3xl font-semibold mt-3">
+                {tab === "IVA"
+                  ? "Resumen de IVA"
+                  : tab === "Libro diario (detalle)"
+                    ? `Asientos de ${month}`
+                    : tab}
+              </h2>
             </div>
             <label>
               Mes
@@ -132,7 +152,10 @@ export default function AccountingWorkspace(props: Props) {
                 aria-label="Mes contable"
                 type="month"
                 value={month}
-                onChange={(e) => setMonth(e.target.value)}
+                onChange={(e) => {
+                  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(e.target.value))
+                    setMonth(e.target.value);
+                }}
               />
             </label>
           </div>
@@ -185,11 +208,14 @@ export default function AccountingWorkspace(props: Props) {
             <>
               <div className="grid sm:grid-cols-3 gap-4">
                 {[
-                  ["IVA de tus ventas", r.vatOutput],
-                  ["IVA que puedes descontar registrado", r.vatInput],
-                  ["Diferencia del mes: ventas menos crédito", r.vatDifference],
-                ].map(([s, n]) => (
-                  <div className="card" key={String(s)}>
+                  ["Débito fiscal registrado", r.vatOutput],
+                  ["Crédito fiscal registrado", r.vatInput],
+                  ["Diferencia del mes", r.vatDifference],
+                ].map(([s, n], i) => (
+                  <div
+                    className={`card ${i === 2 ? "profit-highlight" : ""}`}
+                    key={String(s)}
+                  >
                     <p className="muted text-sm">{s}</p>
                     <strong className="text-3xl block mt-4">
                       {money(Number(n))}
@@ -242,6 +268,15 @@ export default function AccountingWorkspace(props: Props) {
           )}
           {tab === "Libro diario (detalle)" && (
             <section className="card">
+              <div className="flex justify-between gap-4 mb-5">
+                <h3 className="font-semibold">Asientos de {month}</h3>
+                <a
+                  className="muted text-sm"
+                  href={`/api/admin/report?month=${encodeURIComponent(month)}&format=csv`}
+                >
+                  Exportar CSV
+                </a>
+              </div>
               <p className="muted text-sm mb-5">
                 Se completa automáticamente al guardar. Aquí también quedan las
                 correcciones.
@@ -307,8 +342,8 @@ export default function AccountingWorkspace(props: Props) {
                           ¿Qué había que corregir?
                           <input
                             required
-                            minLength={3}
-                            maxLength={200}
+                            minLength={5}
+                            maxLength={180}
                             value={reason}
                             onChange={(event) => setReason(event.target.value)}
                           />
@@ -331,6 +366,7 @@ export default function AccountingWorkspace(props: Props) {
                         <thead className="text-left muted">
                           <tr>
                             <th>Cuenta</th>
+                            <th>Clasificación</th>
                             <th className="text-right">Debe</th>
                             <th className="text-right">Haber</th>
                           </tr>
@@ -343,6 +379,9 @@ export default function AccountingWorkspace(props: Props) {
                                   l.account as keyof typeof accountNames
                                 ] ?? l.account}
                               </td>
+                              <td className="muted">
+                                {accountClassification(l.account)}
+                              </td>
                               <td className="text-right">
                                 {l.debit ? money(l.debit) : "—"}
                               </td>
@@ -352,7 +391,9 @@ export default function AccountingWorkspace(props: Props) {
                             </tr>
                           ))}
                           <tr className="border-t font-semibold bg-[#edf4ef]">
-                            <td className="py-3">Total</td>
+                            <td className="py-3" colSpan={2}>
+                              Total
+                            </td>
                             <td className="text-right">
                               {money(e.lines.reduce((n, l) => n + l.debit, 0))}
                             </td>

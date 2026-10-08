@@ -228,6 +228,13 @@ async function main() {
       where: { id: 1 },
     });
     const month = formatInTimeZone(new Date(), config.timezone, "yyyy-MM");
+    const csv = await fetch(
+      origin + "/api/admin/report?month=" + month + "&format=csv",
+      { headers: { cookie } },
+    );
+    assert.equal(csv.status, 200);
+    assert.match(csv.headers.get("content-type")!, /text\/csv/);
+    assert.match(await csv.text(), /Clasificación/);
     const response = await fetch(origin + "/api/admin/report?month=" + month, {
       headers: { cookie },
     });
@@ -238,7 +245,15 @@ async function main() {
       Buffer.from(await response.arrayBuffer()) as never,
     );
     assert.equal(workbook.worksheets.length, 7);
-    assert.ok(workbook.getWorksheet("Estado de resultados"));
+    const statement = workbook.getWorksheet("Estado de resultados")!;
+    assert.ok(statement);
+    assert.equal(statement.getCell("A2").value, "Ingresos por servicios");
+    assert.equal(statement.getCell("A6").value, "Resultado bruto");
+    assert.equal(
+      statement.getCell("A10").value,
+      "Resultado antes de impuesto a la renta",
+    );
+    assert.equal(typeof statement.getCell("B10").value, "number");
     assert.ok(workbook.getWorksheet("Documentos")!.rowCount > 1);
     console.log(
       "Reportes: IVA, validación RUT, anulación con pago, reintentos y Excel verificados.",

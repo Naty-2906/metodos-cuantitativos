@@ -18,6 +18,15 @@ export const accountNames = {
   EXPENSE_INTEREST: "Intereses de préstamos",
 } as const;
 export type Account = keyof typeof accountNames;
+export function accountClassification(account: string) {
+  if (account.startsWith("REVENUE_")) return "Ingreso";
+  if (account === "EXPENSE_SUPPLIES") return "Costo";
+  if (account.startsWith("EXPENSE_")) return "Gasto";
+  if (["PAYABLE", "LOAN", "VAT_OUTPUT"].includes(account)) return "Pasivo";
+  if (["OWNER_CAPITAL", "OWNER_DRAWINGS"].includes(account))
+    return "Patrimonio";
+  return "Activo";
+}
 export type EntryLine = { account: Account; debit: number; credit: number };
 const amount = z.number().int().positive().max(2000000000);
 export const operationSchema = z

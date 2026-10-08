@@ -120,6 +120,8 @@ export function localReceiptExpense(
   };
 }
 export const aiReceiptSchema = z.object({
+  vat: z.number().nonnegative().max(20000000).nullable().optional(),
+  net: z.number().nonnegative().max(20000000).nullable().optional(),
   amount: z.number().positive().max(20000000).nullable(),
   date: z.string().nullable(),
   description: z.string().max(200).nullable(),
@@ -152,7 +154,15 @@ export function validateAIReceipt(
     throw Error("Fecha inválida");
   if (currency === "CLP" && v.amount !== null && !Number.isInteger(v.amount))
     throw Error("Monto CLP inválido");
+  if (
+    currency === "CLP" &&
+    [v.vat, v.net].some((n) => n != null && !Number.isInteger(n))
+  )
+    throw Error("Monto CLP inválido");
+  const invalidVat = v.vat != null && v.amount != null && v.vat >= v.amount;
   return {
+    vat: invalidVat ? undefined : (v.vat ?? undefined),
+    net: v.net ?? undefined,
     amount: v.amount ?? undefined,
     date: v.date ?? undefined,
     description: v.description ?? undefined,
@@ -161,6 +171,9 @@ export function validateAIReceipt(
     items: v.items,
     warnings: [
       ...v.warnings,
+      ...(invalidVat
+        ? ["El IVA leído no coincide con el total; revisa el desglose."]
+        : []),
       ...(v.amount === null
         ? ["Confirma el monto total antes de guardar."]
         : []),

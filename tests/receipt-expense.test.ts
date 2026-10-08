@@ -112,3 +112,13 @@ test("multiple reads use agreement over confidence and disclose different totals
   assert.equal(r.amount, 11900);
   assert.ok(r.warnings.some((w) => w.includes("totales distintos")));
 });
+
+test("AI retains document net and VAT and flags an impossible tax", () => {
+  const r = validateAIReceipt({ ...ai, net: 10000, vat: 1900 }, "CLP");
+  assert.equal(r.net, 10000);
+  assert.equal(r.vat, 1900);
+  assert.throws(() => validateAIReceipt({ ...ai, vat: 19.5 }, "CLP"));
+  const bad = validateAIReceipt({ ...ai, vat: 11900 }, "CLP");
+  assert.equal(bad.vat, undefined);
+  assert.ok(bad.warnings.some((w) => w.includes("IVA leído")));
+});

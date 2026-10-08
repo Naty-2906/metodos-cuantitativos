@@ -1,3 +1,4 @@
+import { invoiceFromTotal } from "./invoice";
 import type { Prisma } from "@prisma/client";
 export type TaxTreatment = "UNKNOWN" | "AFFECTED" | "EXEMPT";
 export async function readTaxProfile(tx: Prisma.TransactionClient) {
@@ -22,6 +23,6 @@ export async function readTaxProfile(tx: Prisma.TransactionClient) {
 export function vatIncluded(gross: number) {
   if (gross % 100 !== 0)
     throw Error("Usa montos en pesos enteros para ventas con IVA");
-  const net = Math.round(gross / 100 / 1.19) * 100;
-  return { net, vat: gross - net };
+  const split = invoiceFromTotal(gross / 100);
+  return { net: split.net * 100, vat: split.vat * 100 };
 }

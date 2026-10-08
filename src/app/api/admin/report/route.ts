@@ -1,12 +1,18 @@
 import { readTaxProfile } from "@/lib/tax-profile";
 import { NextRequest, NextResponse } from "next/server";
+import { financeCSV } from "@/lib/finance-csv";
+import { formatInTimeZone } from "date-fns-tz";
 import ExcelJS from "exceljs";
 import { authorized } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { documents } from "@/lib/finance-documents";
 import { importLegacy, journalReady } from "@/lib/journal";
 import { report, isVoided } from "@/lib/reports";
-import { accountNames, type JournalView } from "@/lib/accounting";
+import {
+  accountNames,
+  accountClassification,
+  type JournalView,
+} from "@/lib/accounting";
 export async function GET(req: NextRequest) {
   if (!(await authorized()))
     return NextResponse.json({ error: "Acceso restringido" }, { status: 401 });
@@ -47,6 +53,38 @@ export async function GET(req: NextRequest) {
       data.config.timezone,
       data.config.currency,
     );
+    if (req.nextUrl.searchParams.get("format") === "csv") {
+      const rows: (string | number)[][] = [
+        [
+          "Fecha",
+          "Operación",
+          "Cuenta",
+          "Clasificación",
+          "Debe",
+          "Haber",
+          "Moneda",
+        ],
+        ...r.period.flatMap((entry) =>
+          entry.lines.map((line) => [
+            formatInTimeZone(entry.date, data.config.timezone, "yyyy-MM-dd"),
+            entry.description,
+            accountNames[line.account as keyof typeof accountNames] ??
+              line.account,
+            accountClassification(line.account),
+            line.debit / 100,
+            line.credit / 100,
+            entry.currency,
+          ]),
+        ),
+      ];
+      return new NextResponse(financeCSV(rows), {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="libro-diario-${month}.csv"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
     const book = new ExcelJS.Workbook();
     book.creator = "Aura Barbería";
     book.created = new Date();
@@ -123,13 +161,7 @@ export async function GET(req: NextRequest) {
       "Estado de resultados",
       ["Concepto", "Monto"],
       [
-        ...r.resultAccounts.map((v) => [
-          accountNames[v.account as keyof typeof accountNames] ?? v.account,
-          amount(v.amount),
-        ]),
-        ["Ingresos netos registrados", amount(r.totals.income)],
-        ["Gastos registrados", amount(r.totals.expenses)],
-        ["Resultado antes de renta", amount(r.totals.profit)],
+        ...r.incomeStatement.map((row) => [row.label, amount(row.amount)]),
         [
           "Margen porcentual",
           r.totals.income ? (r.totals.profit / r.totals.income) * 100 : 0,

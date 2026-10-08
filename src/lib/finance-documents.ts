@@ -96,7 +96,17 @@ export async function annotate(
   const existingVat = lines.filter(
     (l) => l.account === "VAT_OUTPUT" || l.account === "VAT_INPUT",
   );
-  const targetVat = sale ? v.vat : v.recoverable ? v.vat : 0;
+  const recordedSaleVat = existingVat
+    .filter((l) => l.account === "VAT_OUTPUT")
+    .reduce((n, l) => n + l.credit - l.debit, 0);
+  // Attaching a receipt without confirmed tax data must not erase VAT already posted on an affected sale.
+  const targetVat = sale
+    ? v.type === "SUPPORT"
+      ? recordedSaleVat
+      : v.vat
+    : v.recoverable
+      ? v.vat
+      : 0;
   if (targetVat || existingVat.length) {
     const line = lines.find((l) =>
       sale

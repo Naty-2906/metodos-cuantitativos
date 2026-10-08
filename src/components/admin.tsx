@@ -1,4 +1,5 @@
 "use client";
+import BusinessOverview from "./business-overview";
 import AccountingWorkspace from "./accounting-workspace";
 import type { JournalView } from "@/lib/accounting";
 import ScheduleSettings from "./schedule-settings";
@@ -58,7 +59,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [tab, setTab] = useState("Resumen"),
-    [period, setPeriod] = useState("month"),
+    [reportMonth, setReportMonth] = useState(""),
     [day, setDay] = useState(""),
     [week, setWeek] = useState(false);
   const load = useCallback(async () => {
@@ -71,6 +72,9 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
       }
       if (!r.ok) throw Error(d.error);
       setData(d);
+      setReportMonth(
+        (v) => v || formatInTimeZone(new Date(), d.config.timezone, "yyyy-MM"),
+      );
       setDay(
         (v) =>
           v || formatInTimeZone(new Date(), d.config.timezone, "yyyy-MM-dd"),
@@ -114,48 +118,6 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
     }).format(n / 100);
   const local = (s: string) =>
     formatInTimeZone(new Date(s), zone, "dd MMM · HH:mm");
-  function periodContains(s: string) {
-    const now = formatInTimeZone(new Date(), zone, "yyyy-MM-dd"),
-      d = formatInTimeZone(new Date(s), zone, "yyyy-MM-dd");
-    if (period === "day") return d === now;
-    if (period === "month") return d.slice(0, 7) === now.slice(0, 7);
-    const start = new Date(now + "T12:00:00Z");
-    start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
-    return d >= start.toISOString().slice(0, 10) && d <= now;
-  }
-  const payments = data?.payments.filter((p) => periodContains(p.date)) ?? [],
-    expenses = data?.expenses.filter((p) => periodContains(p.date)) ?? [],
-    income = payments.reduce((n, p) => n + p.amount, 0),
-    cost = expenses.reduce((n, p) => n + p.amount, 0),
-    net = income - cost,
-    margin = income ? (net / income) * 100 : 0;
-  const completed =
-    data?.appointments.filter(
-      (a) => a.status === "COMPLETED" && periodContains(a.start),
-    ) ?? [];
-  const monthKey = formatInTimeZone(new Date(), zone, "yyyy-MM");
-  const monthlyIncome =
-    data?.payments
-      .filter(
-        (p) => formatInTimeZone(new Date(p.date), zone, "yyyy-MM") === monthKey,
-      )
-      .reduce((n, p) => n + p.amount, 0) ?? 0;
-  const monthlyCost =
-    data?.expenses
-      .filter(
-        (p) => formatInTimeZone(new Date(p.date), zone, "yyyy-MM") === monthKey,
-      )
-      .reduce((n, p) => n + p.amount, 0) ?? 0;
-  const monthlyMargin = monthlyIncome
-    ? ((monthlyIncome - monthlyCost) / monthlyIncome) * 100
-    : 0;
-  const health = !monthlyIncome
-    ? "Sin datos"
-    : monthlyMargin >= 30
-      ? "Bueno"
-      : monthlyMargin >= 10
-        ? "Estable"
-        : "Alerta";
   async function form(e: React.FormEvent<HTMLFormElement>, action: string) {
     e.preventDefault();
     const el = e.currentTarget,
@@ -211,7 +173,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
           <span className="rounded-xl bg-[#214e3f] text-white p-2">
             <Scissors size={22} />
           </span>
-          AURA<span className="text-[#ba9562]">.</span>
+          BARBERO<span className="text-[#ba9562]">.</span>
         </a>
         <p className="eyebrow mt-12 mb-5">MI BARBERÍA</p>
         <nav aria-label="Panel del barbero" className="admin-side-nav">
@@ -252,7 +214,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
       </header>
       <div className="admin-main max-w-7xl px-6 py-9">
         <div
-          className={`flex flex-wrap justify-between items-end gap-4 ${tab === "Contabilidad" ? "hidden" : ""}`}
+          className={`flex flex-wrap justify-between items-end gap-4 ${tab === "Contabilidad" || tab === "Resumen" ? "hidden" : ""}`}
         >
           <div>
             <p className="eyebrow">CADA DETALLE CUENTA</p>
@@ -294,186 +256,11 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
         ) : (
           <>
             {tab === "Resumen" && (
-              <>
-                <div className="flex justify-between items-center mb-5">
-                  <h2 className="font-semibold text-lg">Salud de tu negocio</h2>
-                  <div className="flex bg-[#e9eee3] rounded-lg p-1">
-                    {[
-                      ["day", "Hoy"],
-                      ["week", "Semana"],
-                      ["month", "Mes"],
-                    ].map(([v, l]) => (
-                      <button
-                        key={v}
-                        onClick={() => setPeriod(v)}
-                        className={`px-3 py-2 text-xs rounded-md ${v === period ? "bg-white shadow-sm" : "muted"}`}
-                      >
-                        {l}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <p className="muted text-xs leading-5 mb-4">
-                  Incluye ventas y gastos del período aunque estén pendientes.
-                  Los aportes, retiros, préstamos y compras de máquinas se
-                  muestran en Contabilidad.
-                </p>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {[
-                    [
-                      "Ingresos contables",
-                      money(income),
-                      Wallet,
-                      "Ventas y servicios del período",
-                    ],
-                    [
-                      "Gastos y costos",
-                      money(cost),
-                      Receipt,
-                      "Según tus gastos registrados",
-                    ],
-                    [
-                      "Ganancia del mes",
-                      money(net),
-                      TrendingUp,
-                      `${margin.toFixed(1)}% de margen`,
-                    ],
-                    [
-                      "Ticket promedio",
-                      money(
-                        completed.length
-                          ? payments
-                              .filter((p) => p.appointment)
-                              .reduce((n, p) => n + p.amount, 0) /
-                              completed.length
-                          : 0,
-                      ),
-                      Activity,
-                      `${completed.length} servicios realizados`,
-                    ],
-                  ].map(([title, value, Icon, detail]) => {
-                    const I = Icon as typeof Wallet;
-                    return (
-                      <div
-                        className={`${card} ${title === "Ganancia del mes" ? "profit-highlight" : ""}`}
-                        key={String(title)}
-                      >
-                        <div className="flex justify-between">
-                          <p className="muted text-xs">{String(title)}</p>
-                          <I size={18} className="text-[#78916c]" />
-                        </div>
-                        <p className="text-3xl font-semibold mt-5">
-                          {String(value)}
-                        </p>
-                        <p className="muted text-xs mt-3">{String(detail)}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="grid lg:grid-cols-[1.5fr_1fr] gap-5 mt-5">
-                  <section className={card}>
-                    <h2 className="text-lg font-semibold">
-                      Ingresos por servicio
-                    </h2>
-                    <p className="muted text-xs mt-1 mb-6">
-                      Contribución a tus ingresos en el período
-                    </p>
-                    {Object.entries(
-                      payments.reduce<Record<string, number>>((acc, p) => {
-                        const k =
-                          p.appointment?.service.name ??
-                          (p.kind === "SALE_PRODUCT"
-                            ? "Productos"
-                            : "Servicios registrados");
-                        acc[k] = (acc[k] ?? 0) + p.amount;
-                        return acc;
-                      }, {}),
-                    )
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([name, amount]) => (
-                        <div key={name} className="mb-5">
-                          <div className="flex justify-between text-sm mb-2">
-                            <span>{name}</span>
-                            <strong>{money(amount)}</strong>
-                          </div>
-                          <div className="bg-[#edf1e7] rounded-full h-2">
-                            <div
-                              className="bg-[#739167] h-2 rounded-full"
-                              style={{
-                                width: `${income > 0 ? Math.max(0, Math.min(100, (amount / income) * 100)) : 0}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    {!payments.length && (
-                      <p className="muted text-sm">
-                        Los servicios completados aparecerán aquí.
-                      </p>
-                    )}
-                  </section>
-                  <section className="card bg-[#edf3e6]">
-                    <p className="eyebrow">SEMÁFORO MENSUAL</p>
-                    <h2 className="text-3xl mt-6 flex items-center gap-3">
-                      <span
-                        className={`w-3 h-3 rounded-full ${health === "Bueno" ? "bg-green-600" : health === "Estable" ? "bg-amber-500" : health === "Alerta" ? "bg-red-500" : "bg-gray-400"}`}
-                      />
-                      {health}
-                    </h2>
-                    <p className="muted text-sm mt-4 leading-6">
-                      {health === "Bueno"
-                        ? "Tu negocio tiene un margen saludable. Sigue cuidando cada detalle."
-                        : health === "Sin datos"
-                          ? "Registra tus primeros cobros para conocer el estado de tu negocio."
-                          : "Revisa tus gastos y precios para mejorar tu margen."}
-                    </p>
-                    <p className="text-xs muted mt-7">
-                      Bueno ≥ 30% · Estable ≥ 10% · Alerta &lt; 10%
-                      <br />
-                      Margen mensual: {monthlyMargin.toFixed(1)}%
-                    </p>
-                  </section>
-                </div>
-                <section className="card mt-5 overflow-x-auto">
-                  <h2 className="font-semibold mb-5">
-                    Ingresos y gastos del período
-                  </h2>
-                  <table className="w-full text-sm">
-                    <thead className="muted text-xs text-left">
-                      <tr>
-                        <th className="pb-3">Concepto</th>
-                        <th>Fecha</th>
-                        <th className="text-right">Monto</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        ...payments.map((p) => ({ ...p, kind: 1 })),
-                        ...expenses.map((p) => ({ ...p, kind: -1 })),
-                      ]
-                        .sort((a, b) => b.date.localeCompare(a.date))
-                        .slice(0, 10)
-                        .map((p) => (
-                          <tr key={p.id} className="border-t border-[#edf0e7]">
-                            <td className="py-4">{p.description}</td>
-                            <td className="muted">{local(p.date)}</td>
-                            <td
-                              className={`text-right font-semibold ${p.kind === 1 ? "text-[#52754c]" : "text-red-700"}`}
-                            >
-                              {p.kind === 1 ? "+" : "−"}
-                              {money(p.amount)}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                  {!payments.length && !expenses.length && (
-                    <p className="muted py-5 text-sm">
-                      Aún no hay movimientos en este período.
-                    </p>
-                  )}
-                </section>
-              </>
+              <BusinessOverview
+                {...data}
+                selectedMonth={reportMonth}
+                onMonthChange={setReportMonth}
+              />
             )}
             {tab === "Agenda" && (
               <>
@@ -640,6 +427,8 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
             {tab === "Contabilidad" && (
               <AccountingWorkspace
                 finance={data.finance}
+                selectedMonth={reportMonth}
+                onMonthChange={setReportMonth}
                 taxProfile={data.taxProfile}
                 timezone={zone}
                 currency={data.config.currency}
