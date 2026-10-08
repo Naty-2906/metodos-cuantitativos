@@ -2,11 +2,13 @@
 import { useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
 import { BookOpen, Scale, FileText, Settings } from "lucide-react";
+import TaxSettings from "./tax-settings";
 import Operations from "./operations";
 import FinancialReports from "./financial-reports";
 import { accountNames, type JournalView } from "@/lib/accounting";
-import { report } from "@/lib/reports";
+import { report, isVoided } from "@/lib/reports";
 type Props = {
+  taxProfile?: { ready: boolean; treatment: "UNKNOWN" | "AFFECTED" | "EXEMPT" };
   finance: { ready: boolean; documentsReady?: boolean; entries: JournalView[] };
   timezone: string;
   currency: string;
@@ -22,6 +24,8 @@ const tabs = [
   { name: "IVA", icon: FileText },
 ];
 export default function AccountingWorkspace(props: Props) {
+  const [correction, setCorrection] = useState(""),
+    [reason, setReason] = useState("");
   const [tab, setTab] = useState(tabs[0].name),
     [month, setMonth] = useState(() =>
       formatInTimeZone(new Date(), props.timezone, "yyyy-MM"),
@@ -36,7 +40,7 @@ export default function AccountingWorkspace(props: Props) {
     new Intl.NumberFormat("es-CL", {
       style: "currency",
       currency: props.currency,
-    }).format(n / 100);
+    }).format(n === 0 ? 0 : n / 100);
   return (
     <div className="accounting-workspace">
       <nav
@@ -57,15 +61,54 @@ export default function AccountingWorkspace(props: Props) {
         ))}
         <button
           type="button"
-          onClick={props.onSettings}
+          onClick={() => setTab("Configuración")}
           className="accounting-tab"
         >
           <Settings size={16} />
           Configuración
         </button>
       </nav>
+      {tab === "Configuración" && (
+        <TaxSettings
+          profile={props.taxProfile}
+          busy={props.busy}
+          send={props.send}
+        />
+      )}
       {tab === "Registrar una operación" && (
         <>
+          <details className="card mb-6">
+            <summary className="cursor-pointer font-semibold">
+              Tu rutina para llevar los números sin complicarte
+            </summary>
+            <ol className="list-decimal pl-5 space-y-3 mt-4 text-sm">
+              <li>
+                Registra cada venta o marca el servicio cobrado en la agenda.
+                Evita anotarlo dos veces.
+              </li>
+              <li>
+                Para compras, escanea el documento y comprueba el total y la
+                fecha de emisión.
+              </li>
+              <li>
+                Indica si ya pagaste o si quedó pendiente. Registra el pago
+                después, desde “Por cobrar / pagar”.
+              </li>
+              <li>
+                Si te equivocas, revierte la operación en la revisión de
+                documentos y registra la correcta.
+              </li>
+              <li>
+                Al cerrar el mes, revisa ganancias, pendientes e IVA; descarga
+                el Excel y contrasta tus documentos con el SII.
+              </li>
+            </ol>
+            <p className="muted text-xs mt-4">
+              La gestión diaria se completa aquí. Declaraciones tributarias y
+              ajustes especiales requieren validar los antecedentes reales del
+              negocio.
+            </p>
+          </details>
           <Operations
             {...props}
             onViewLedger={() => setTab("Libro diario (detalle)")}
@@ -144,7 +187,7 @@ export default function AccountingWorkspace(props: Props) {
                 {[
                   ["IVA de tus ventas", r.vatOutput],
                   ["IVA que puedes descontar registrado", r.vatInput],
-                  ["IVA pagado en compras este mes", r.paidPurchaseVat],
+                  ["Diferencia del mes: ventas menos crédito", r.vatDifference],
                 ].map(([s, n]) => (
                   <div className="card" key={String(s)}>
                     <p className="muted text-sm">{s}</p>
@@ -156,9 +199,44 @@ export default function AccountingWorkspace(props: Props) {
               </div>
               <p className="text-sm rounded-xl bg-amber-50 p-4 my-5">
                 {r.missing} movimientos necesitan revisar su boleta o factura.
-                Tu régimen está por confirmar: no todo IVA pagado se puede
-                descontar. Este resumen no es una declaración al SII.
+                {props.taxProfile?.treatment === "AFFECTED"
+                  ? "Negocio configurado como afecto a IVA."
+                  : props.taxProfile?.treatment === "EXEMPT"
+                    ? "Negocio configurado como exento o no afecto."
+                    : "Tu tratamiento de IVA está por confirmar."}{" "}
+                No todo IVA pagado se puede descontar. Este resumen no es una
+                declaración al SII.
               </p>
+              <div className="card my-5">
+                <h3 className="font-semibold mb-4">
+                  Cómo se trata cada documento
+                </h3>
+                {[
+                  ["Ventas afectas", "IVA de ventas separado del ingreso"],
+                  [
+                    "Facturas de compra con derecho a crédito confirmado",
+                    "IVA descontable registrado",
+                  ],
+                  [
+                    "Boletas de compra / sin derecho a crédito",
+                    "Total al costo o al bien comprado",
+                  ],
+                ].map(([a, b]) => (
+                  <p
+                    key={a}
+                    className="flex flex-wrap justify-between gap-3 border-b py-4 text-sm"
+                  >
+                    <span>{a}</span>
+                    <strong>{b}</strong>
+                  </p>
+                ))}
+                <p className="muted text-sm mt-4">
+                  IVA informado en compras pagadas este mes:{" "}
+                  {money(r.paidPurchaseVat)}. Si la diferencia es negativa,
+                  representa crédito registrado; su uso debe revisarse en el
+                  SII.
+                </p>
+              </div>
               <FinancialReports {...props} mode="documents" />
             </>
           )}
@@ -168,59 +246,130 @@ export default function AccountingWorkspace(props: Props) {
                 Se completa automáticamente al guardar. Aquí también quedan las
                 correcciones.
               </p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left">
-                      <th>Fecha / operación</th>
-                      <th>Cuenta</th>
-                      <th className="text-right">Debe</th>
-                      <th className="text-right">Haber</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {r.period.flatMap((e) =>
-                      e.lines.map((l, i) => (
-                        <tr key={e.id + ":" + i} className="border-t">
-                          <td className="py-3 pr-3">
-                            {i === 0 && (
-                              <>
-                                <p>
-                                  {formatInTimeZone(
-                                    e.date,
-                                    props.timezone,
-                                    "dd/MM/yyyy",
-                                  )}
-                                </p>
-                                <p className="muted text-xs mt-1">
-                                  {e.description}
-                                </p>
-                              </>
-                            )}
-                          </td>
-                          <td className="py-3">
-                            {accountNames[
-                              l.account as keyof typeof accountNames
-                            ] ?? l.account}
-                          </td>
-                          <td className="text-right">
-                            {l.debit ? money(l.debit) : "—"}
-                          </td>
-                          <td className="text-right">
-                            {l.credit ? money(l.credit) : "—"}
-                          </td>
-                        </tr>
-                      )),
+              <div className="space-y-6">
+                {r.period.map((e) => (
+                  <article key={e.id} className="border-b pb-6">
+                    <div className="flex justify-between gap-4">
+                      <div>
+                        <p className="muted text-sm">
+                          {formatInTimeZone(
+                            e.date,
+                            props.timezone,
+                            "dd/MM/yyyy",
+                          )}
+                        </p>
+                        <h3 className="font-semibold mt-2">{e.description}</h3>
+                        <p className="muted text-xs mt-2">
+                          {isVoided(e, props.finance.entries)
+                            ? "Operación anulada"
+                            : e.kind === "REVERSAL"
+                              ? "Corrección registrada"
+                              : "Asiento registrado"}
+                        </p>
+                      </div>
+                      {!isVoided(e, props.finance.entries) &&
+                        e.kind !== "REVERSAL" &&
+                        e.kind !== "SETTLEMENT" && (
+                          <button
+                            type="button"
+                            className="text-sm muted self-start"
+                            disabled={props.busy}
+                            onClick={() => {
+                              setCorrection(e.id);
+                              setReason("");
+                            }}
+                          >
+                            Revertir
+                          </button>
+                        )}
+                    </div>
+                    {correction === e.id && (
+                      <form
+                        className="rounded-xl border p-4 mt-4"
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          if (
+                            await props.send({
+                              action: "reverse",
+                              id: e.id,
+                              reason,
+                            })
+                          )
+                            setCorrection("");
+                        }}
+                      >
+                        <p className="text-sm mb-3">
+                          Se anularán esta operación y su pago, si lo tiene. El
+                          historial se conserva y los informes se actualizan.
+                          Después puedes registrar el dato correcto.
+                        </p>
+                        <label>
+                          ¿Qué había que corregir?
+                          <input
+                            required
+                            minLength={3}
+                            maxLength={200}
+                            value={reason}
+                            onChange={(event) => setReason(event.target.value)}
+                          />
+                        </label>
+                        <div className="flex gap-3 mt-3">
+                          <button className="primary" disabled={props.busy}>
+                            Anular este registro
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCorrection("")}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </form>
                     )}
-                    {!r.period.length && (
-                      <tr>
-                        <td colSpan={4} className="py-6 muted">
-                          Todavía no hay movimientos en este mes.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                    <div className="overflow-x-auto mt-4">
+                      <table className="w-full text-sm">
+                        <thead className="text-left muted">
+                          <tr>
+                            <th>Cuenta</th>
+                            <th className="text-right">Debe</th>
+                            <th className="text-right">Haber</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {e.lines.map((l, i) => (
+                            <tr key={i} className="border-t">
+                              <td className="py-3">
+                                {accountNames[
+                                  l.account as keyof typeof accountNames
+                                ] ?? l.account}
+                              </td>
+                              <td className="text-right">
+                                {l.debit ? money(l.debit) : "—"}
+                              </td>
+                              <td className="text-right">
+                                {l.credit ? money(l.credit) : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="border-t font-semibold bg-[#edf4ef]">
+                            <td className="py-3">Total</td>
+                            <td className="text-right">
+                              {money(e.lines.reduce((n, l) => n + l.debit, 0))}
+                            </td>
+                            <td className="text-right">
+                              {money(e.lines.reduce((n, l) => n + l.credit, 0))}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                ))}
+                {!r.period.length && (
+                  <p className="muted">
+                    Todavía no hay movimientos en este mes.
+                  </p>
+                )}
               </div>
             </section>
           )}
@@ -229,7 +378,7 @@ export default function AccountingWorkspace(props: Props) {
               className="primary inline-flex mt-6"
               href={`/api/admin/report?month=${encodeURIComponent(month)}`}
             >
-              Descargar Excel para mi contador
+              Descargar Excel del mes
             </a>
           )}
         </>

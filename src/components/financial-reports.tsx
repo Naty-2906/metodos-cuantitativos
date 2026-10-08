@@ -217,10 +217,10 @@ export default function FinancialReports({
                 ))}
               </div>
               <p className="rounded-xl bg-amber-50 p-3 text-sm">
-                Régimen tributario por confirmar. {r.missing} operaciones del
-                mes necesitan revisión documental. Estos montos son un respaldo:
-                deben cotejarse con el Registro de Compras y Ventas y revisarse
-                antes de declarar al SII.
+                El tratamiento tributario se elige en Configuración. {r.missing}{" "}
+                operaciones del mes necesitan revisión documental. Estos montos
+                son un respaldo: deben cotejarse con el Registro de Compras y
+                Ventas y revisarse antes de declarar al SII.
               </p>
               {finance.ready && month && (
                 <a

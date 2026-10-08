@@ -13,7 +13,7 @@ export async function ensureFinanceSchema(
   try {
     client = await pool.connect();
     const ready = await client.query<{ ready: boolean }>(
-      `SELECT to_regclass('public."JournalDocument"') IS NOT NULL AND to_regclass('public."JournalEntry"') IS NOT NULL AND to_regclass('public."JournalLine"') IS NOT NULL AS ready`,
+      `SELECT to_regclass('public."JournalDocument"') IS NOT NULL AND to_regclass('public."JournalEntry"') IS NOT NULL AND to_regclass('public."JournalLine"') IS NOT NULL AND to_regclass('public."TaxProfile"') IS NOT NULL AND to_regclass('public."ReceiptSubmission"') IS NOT NULL AS ready`,
     );
     if (ready.rows[0].ready) return true;
     await client.query("BEGIN");
@@ -22,7 +22,7 @@ export async function ensureFinanceSchema(
     await client.query("SELECT pg_advisory_xact_lock(29062026)");
     // Recheck after the lock: another owner request may have applied it already.
     const locked = await client.query<{ ready: boolean }>(
-      `SELECT to_regclass('public."JournalDocument"') IS NOT NULL AND to_regclass('public."JournalEntry"') IS NOT NULL AND to_regclass('public."JournalLine"') IS NOT NULL AS ready`,
+      `SELECT to_regclass('public."JournalDocument"') IS NOT NULL AND to_regclass('public."JournalEntry"') IS NOT NULL AND to_regclass('public."JournalLine"') IS NOT NULL AND to_regclass('public."TaxProfile"') IS NOT NULL AND to_regclass('public."ReceiptSubmission"') IS NOT NULL AS ready`,
     );
     if (!locked.rows[0].ready) await client.query(financeSchemaSQL);
     await client.query("COMMIT");

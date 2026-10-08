@@ -1,3 +1,4 @@
+import { readTaxProfile } from "@/lib/tax-profile";
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { authorized } from "@/lib/auth";
@@ -29,6 +30,7 @@ export async function GET(req: NextRequest) {
         });
         return {
           config,
+          taxProfile: await readTaxProfile(tx),
           entries: entries.map((e) => ({
             ...e,
             date: e.date.toISOString(),
@@ -90,7 +92,14 @@ export async function GET(req: NextRequest) {
           "Uso",
           "Respaldo para revisión del contador; no es F29, F22, DTE ni archivo oficial del RCV.",
         ],
-        ["Régimen tributario", "Por confirmar; no se asume obligación de IVA."],
+        [
+          "Tratamiento de IVA",
+          data.taxProfile.treatment === "AFFECTED"
+            ? "Afecto a IVA, confirmado por el dueño"
+            : data.taxProfile.treatment === "EXEMPT"
+              ? "Exento / no afecto, confirmado por el dueño"
+              : "Por confirmar; no se asume obligación de IVA.",
+        ],
         [
           "IVA",
           "Según documentos registrados y elegibilidad confirmada por el dueño; cotejar con RCV del SII.",

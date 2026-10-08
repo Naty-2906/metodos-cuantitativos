@@ -81,37 +81,50 @@ export async function annotate(
   const sale = e.kind.startsWith("SALE_");
   if (sale && v.recoverable)
     throw Error("Revisa el IVA y la moneda de la operación");
-  if (v.type === "INVOICE" && v.rut) {
+  if (v.type !== "SUPPORT" && v.rut) {
     const normalizedRut = v.rut.replace(/[.\s]/g, "").toUpperCase();
     const duplicate = await tx.$queryRaw<
       { entryId: string }[]
-    >`SELECT d."entryId" FROM "JournalDocument" d JOIN "JournalEntry" j ON j."id"=d."entryId" WHERE d."type"='INVOICE' AND d."folio"=${v.folio} AND regexp_replace(upper(d."rut"), '[.[:space:]]', '', 'g')=${normalizedRut} AND (j."kind" LIKE 'SALE_%')=${sale} AND NOT EXISTS (SELECT 1 FROM "JournalEntry" reversed WHERE reversed."sourceKey"='reversal:'||j."id"::text)`;
+    >`SELECT d."entryId" FROM "JournalDocument" d JOIN "JournalEntry" j ON j."id"=d."entryId" WHERE d."type"=${v.type} AND d."folio"=${v.folio} AND regexp_replace(upper(d."rut"), '[.[:space:]]', '', 'g')=${normalizedRut} AND (j."kind" LIKE 'SALE_%')=${sale} AND NOT EXISTS (SELECT 1 FROM "JournalEntry" reversed WHERE reversed."sourceKey"='reversal:'||j."id"::text)`;
     if (duplicate.length)
-      throw Error("Esta factura ya está asociada a otra operación vigente");
+      throw Error("Este documento ya está asociado a otra operación vigente");
   }
   const lines = e.lines.map((l) => ({
     account: l.account as Account,
     debit: l.debit,
     credit: l.credit,
   }));
-  if (v.vat && (sale || v.recoverable)) {
+  // An automatically taxed sale already has a VAT line; replace its split rather than subtracting twice.
+  const existingVat = lines.filter(
+    (l) => l.account === "VAT_OUTPUT" || l.account === "VAT_INPUT",
+  );
+  const targetVat = sale ? v.vat : v.recoverable ? v.vat : 0;
+  if (targetVat || existingVat.length) {
     const line = lines.find((l) =>
       sale
         ? l.account.startsWith("REVENUE_")
         : l.account.startsWith("EXPENSE_") || l.account === "EQUIPMENT",
     );
     if (!line) throw Error("La operación no admite cambios");
-    if (sale) line.credit -= v.vat;
-    else line.debit -= v.vat;
-    lines.push({
-      account: sale ? "VAT_OUTPUT" : "VAT_INPUT",
-      debit: sale ? 0 : v.vat,
-      credit: sale ? v.vat : 0,
-    });
-    checkBalanced(lines);
+    if (sale)
+      line.credit +=
+        existingVat.reduce((n, l) => n + l.credit - l.debit, 0) - targetVat;
+    else
+      line.debit +=
+        existingVat.reduce((n, l) => n + l.debit - l.credit, 0) - targetVat;
+    const changed = lines.filter(
+      (l) => l.account !== "VAT_OUTPUT" && l.account !== "VAT_INPUT",
+    );
+    if (targetVat)
+      changed.push({
+        account: sale ? "VAT_OUTPUT" : "VAT_INPUT",
+        debit: sale ? 0 : targetVat,
+        credit: sale ? targetVat : 0,
+      });
+    checkBalanced(changed);
     await tx.journalLine.deleteMany({ where: { entryId: e.id } });
     await tx.journalLine.createMany({
-      data: lines.map((l) => ({ ...l, entryId: e.id })),
+      data: changed.map((l) => ({ ...l, entryId: e.id })),
     });
   }
   await tx.$executeRaw`INSERT INTO "JournalDocument" ("entryId","type","folio","rut","vat","recoverable") VALUES (${e.id}::uuid,${v.type},${v.folio},${v.rut},${v.vat},${v.recoverable})`;

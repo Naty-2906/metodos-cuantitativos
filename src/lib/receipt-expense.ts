@@ -1,6 +1,15 @@
 import { z } from "zod";
-import { extractReceiptFields, type ReceiptFields } from "./receipt";
+import {
+  extractReceiptFields,
+  receiptSummary,
+  type ReceiptFields,
+} from "./receipt";
 export type ReceiptExpense = ReceiptFields & {
+  vat?: number;
+  net?: number;
+  folio?: string;
+  rut?: string;
+  documentType?: "INVOICE" | "RECEIPT" | "EXEMPT" | "SUPPORT";
   description?: string;
   kind?: "SUPPLIES" | "EXPENSE" | "ASSET";
   category?: "RENT" | "UTILITIES" | "TOOLS" | "MARKETING" | "OTHER";
@@ -17,6 +26,11 @@ export function localReceiptExpense(
   currency: string,
 ): ReceiptExpense {
   const fields = extractReceiptFields(text, currency);
+  const summary = receiptSummary(text, currency);
+  const folio = text.match(
+    /(?:folio|boleta\s*(?:n[°ºo.]*)?|factura\s*(?:n[°ºo.]*)?)\s*[:#]?\s*(\d{1,15})/i,
+  )?.[1];
+  const rut = text.match(/\b(\d{1,2}\.?\d{3}\.?\d{3}-[\dkK])\b/)?.[1];
   const normalized = clean(text);
   const lines = text
     .split(/\r?\n/)
@@ -30,13 +44,11 @@ export function localReceiptExpense(
         clean(l),
       ),
   );
-  const items = itemLines
-    .slice(0, 20)
-    .map((line) => ({
-      name: line.slice(0, 100),
-      quantity: null,
-      amount: null,
-    }));
+  const items = itemLines.slice(0, 20).map((line) => ({
+    name: line.slice(0, 100),
+    quantity: null,
+    amount: null,
+  }));
   let kind: ReceiptExpense["kind"], category: ReceiptExpense["category"];
   const equipment = /\b(maquina|clipper|trimmer|sillon|mueble|secador)\b/.test(
     normalized,
@@ -76,10 +88,25 @@ export function localReceiptExpense(
     warnings.push(
       "Hay equipos e insumos mezclados. Revisa si necesitas separarlos en dos movimientos.",
     );
+  if (summary.amountConflict)
+    warnings.push(
+      "Hay más de un total distinto. Revisa el total final del documento.",
+    );
+  if (summary.dateConflict)
+    warnings.push("Hay fechas de emisión distintas. Confirma la correcta.");
   if (!kind)
     warnings.push("Elige si fue una compra de insumos, un gasto o un equipo.");
   return {
     ...fields,
+    vat: summary.vat,
+    net: summary.net,
+    folio,
+    rut,
+    documentType: /factura/i.test(text)
+      ? "INVOICE"
+      : /boleta/i.test(text)
+        ? "RECEIPT"
+        : undefined,
     kind,
     category,
     items,

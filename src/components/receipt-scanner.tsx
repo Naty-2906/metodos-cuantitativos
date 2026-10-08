@@ -5,6 +5,8 @@ import {
   localReceiptExpense,
   type ReceiptExpense,
 } from "@/lib/receipt-expense";
+import { readDTE } from "@/lib/receipt-xml";
+import { pdfReceipt, receiptImage } from "@/lib/receipt-browser";
 export default function ReceiptScanner({
   currency,
   disabled,
@@ -41,10 +43,19 @@ export default function ReceiptScanner({
     setError("");
     setProposal(null);
     if (
-      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+      !(
+        [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "application/pdf",
+          "text/xml",
+          "application/xml",
+        ].includes(file.type) || /\.(pdf|xml)$/i.test(file.name)
+      ) ||
       file.size > 10 * 1024 * 1024
     ) {
-      setError("Usa una foto JPG, PNG o WebP de hasta 10 MB.");
+      setError("Usa una foto, PDF o XML de hasta 10 MB.");
       return;
     }
     setBusy(true);
@@ -52,34 +63,107 @@ export default function ReceiptScanner({
     setStatus("Preparando lectura…");
     let active: import("tesseract.js").Worker | undefined;
     try {
-      const { createWorker } = await import("tesseract.js");
+      let text = "",
+        image: string | undefined,
+        fields: ReceiptExpense;
+      const ocr = async (source: File | HTMLCanvasElement) => {
+        if (!active) {
+          const { createWorker } = await import("tesseract.js");
+          active = await createWorker("spa", undefined, {
+            errorHandler: () => {},
+            logger: (m) => {
+              if (alive.current && m.status === "recognizing text")
+                setStatus(
+                  `Leyendo documento… ${Math.round(m.progress * 100)}%`,
+                );
+            },
+          });
+          worker.current = active;
+        }
+        const result = await active.recognize(source);
+        return result.data.text;
+      };
+      if (
+        /\.xml$/i.test(file.name) ||
+        ["application/xml", "text/xml"].includes(file.type)
+      ) {
+        fields = readDTE(await file.text());
+        const classified = localReceiptExpense(
+          fields.description ?? "",
+          currency,
+        );
+        fields = {
+          ...fields,
+          kind: classified.kind,
+          category: classified.category,
+        };
+      } else {
+        if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+          setStatus("Leyendo las páginas del PDF…");
+          text = await pdfReceipt(file, ocr);
+        } else {
+          const prepared = await receiptImage(file);
+          image = prepared.image;
+          text = await ocr(prepared.canvas);
+        }
+        fields = localReceiptExpense(text, currency);
+      }
       if (!alive.current) return;
-      active = await createWorker("spa", undefined, {
-        // Rejections are handled below instead of becoming uncaught worker errors.
-        errorHandler: () => {},
-        logger: (m) => {
-          if (alive.current && m.status === "recognizing text")
-            setStatus(`Leyendo documento… ${Math.round(m.progress * 100)}%`);
-        },
-      });
-      worker.current = active;
-      if (!alive.current) return;
-      const { data } = await active.recognize(file);
-      if (!alive.current) return;
-      let fields = localReceiptExpense(data.text, currency);
       let interpreted = false;
-      if (useAI && available) {
+      if (useAI && available && (text || image)) {
         setStatus("Interpretando la compra con IA…");
         try {
           const response = await fetch("/api/admin/receipt", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: data.text.slice(0, 10000), currency }),
+            body: JSON.stringify({
+              text:
+                text.length > 10000
+                  ? text.slice(0, 3000) + "\n" + text.slice(-6999)
+                  : text || "Documento en imagen",
+              currency,
+              image,
+            }),
             signal: AbortSignal.timeout(25000),
           });
           const result = await response.json();
           if (!response.ok) throw Error(result.error ?? "IA no disponible");
-          fields = result.fields;
+          const ai: ReceiptExpense = result.fields;
+          const warnings = [...fields.warnings, ...ai.warnings];
+          if (
+            fields.amount !== undefined &&
+            ai.amount !== undefined &&
+            fields.amount !== ai.amount
+          )
+            warnings.push(
+              "La lectura y la IA indican totales distintos. Verifica el total del documento.",
+            );
+          if (fields.date && ai.date && fields.date !== ai.date)
+            warnings.push(
+              "La lectura y la IA indican fechas distintas. Verifica la fecha de emisión.",
+            );
+          fields = {
+            ...fields,
+            ...ai,
+            amount: fields.amount ?? ai.amount,
+            date: fields.date ?? ai.date,
+            vat: fields.vat,
+            net: fields.net,
+            folio: fields.folio,
+            rut: fields.rut,
+            documentType: fields.documentType,
+            warnings: [...new Set(warnings)].filter(
+              (w) =>
+                !(
+                  (fields.amount ?? ai.amount) !== undefined &&
+                  /total seguro|monto total/.test(w)
+                ) &&
+                !(
+                  (fields.date ?? ai.date) &&
+                  /encontramos la fecha|Confirma la fecha/.test(w)
+                ),
+            ),
+          };
           interpreted = true;
         } catch (error) {
           if (alive.current)
@@ -97,10 +181,12 @@ export default function ReceiptScanner({
           ? "Propuesta interpretada con IA. Revisa antes de usarla."
           : "Propuesta de la lectura automática. Revisa antes de usarla.",
       );
-    } catch {
+    } catch (error) {
       if (alive.current)
         setError(
-          "No se pudo leer la foto. Intenta con una imagen más nítida o completa los datos a mano.",
+          error instanceof Error
+            ? error.message
+            : "No se pudo leer el documento. Completa los datos a mano.",
         );
     } finally {
       if (active) await active.terminate().catch(() => {});
@@ -118,7 +204,7 @@ export default function ReceiptScanner({
         className="flex gap-2 items-center text-sm font-semibold text-[#294e3b]"
       >
         <Camera size={18} />
-        Leer boleta de una compra (opcional)
+        Foto, PDF o XML de una boleta o factura
       </label>
       {available ? (
         <label className="flex gap-2 items-start text-xs mt-3">
@@ -129,7 +215,7 @@ export default function ReceiptScanner({
             onChange={(e) => setUseAI(e.target.checked)}
           />
           Usar IA para interpretar el texto y sugerir el gasto. El texto leído
-          se enviará a OpenAI; la foto permanece en tu dispositivo.
+          se enviará a OpenAI junto con la imagen preparada, si es una foto.
         </label>
       ) : (
         <p className="muted text-xs mt-2">
@@ -137,11 +223,13 @@ export default function ReceiptScanner({
           aún no está activada.
         </p>
       )}
+      <p className="text-xs muted mt-2">
+        1. Elige el documento · 2. Revisa total y emisión · 3. Guarda la compra
+      </p>
       <input
         id="receipt-photo"
         type="file"
-        accept="image/jpeg,image/png,image/webp"
-        capture="environment"
+        accept="image/jpeg,image/png,image/webp,application/pdf,text/xml,application/xml,.xml"
         disabled={disabled || busy}
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -150,18 +238,33 @@ export default function ReceiptScanner({
         }}
         className="text-xs mt-2"
       />
+      <label className="primary inline-flex mt-3 cursor-pointer">
+        Tomar foto
+        <input
+          className="hidden"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          capture="environment"
+          disabled={disabled || busy}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) void scan(file);
+          }}
+        />
+      </label>
       <p className="muted text-xs leading-5 mt-2">
-        La foto se lee en tu dispositivo y no se guarda. Si activas la IA, solo
-        se envía el texto leído para interpretarlo. La primera lectura descarga
-        el lector de texto y necesita internet. Siempre confirma los datos
-        sugeridos.
+        La lectura normal de fotos, PDF y XML ocurre en tu dispositivo. Si
+        activas la IA, se envían el texto y la imagen preparada de la foto a
+        OpenAI. La primera lectura descarga el lector de texto y necesita
+        internet. Siempre confirma los datos sugeridos.
       </p>
       <p role="status" className="text-xs mt-2">
         {status}
       </p>
       {proposal && (
         <div className="mt-4 rounded-xl bg-white p-4 space-y-2 text-sm">
-          <h3 className="font-semibold">Esto encontramos en tu compra</h3>
+          <h3 className="font-semibold">Documento y gasto propuesto</h3>
           <p>
             Total:{" "}
             <strong>
@@ -173,7 +276,16 @@ export default function ReceiptScanner({
                 : "Por completar"}
             </strong>
           </p>
-          <p>Fecha: {proposal.date ?? "Por confirmar"}</p>
+          <p>
+            Fecha de emisión:{" "}
+            <strong>{proposal.date ?? "Por confirmar"}</strong>
+          </p>
+          {proposal.vat !== undefined && (
+            <p>
+              IVA que figura en el documento:{" "}
+              {proposal.vat.toLocaleString("es-CL")} {currency}
+            </p>
+          )}
           <p>
             Tipo:{" "}
             {proposal.kind === "SUPPLIES"

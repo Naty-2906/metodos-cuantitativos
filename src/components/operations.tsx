@@ -178,6 +178,12 @@ export default function Operations({
   send,
   onViewLedger,
 }: Props) {
+  const [docEnabled, setDocEnabled] = useState(false),
+    [docType, setDocType] = useState("RECEIPT"),
+    [folio, setFolio] = useState(""),
+    [rut, setRut] = useState(""),
+    [vat, setVat] = useState(""),
+    [recoverable, setRecoverable] = useState(false);
   const [scanning, setScanning] = useState(false);
   const today = formatInTimeZone(new Date(), timezone, "yyyy-MM-dd");
   const [group, setGroup] = useState(""),
@@ -209,6 +215,9 @@ export default function Operations({
     variant === "PENDING_SALE";
   function choose(id: string) {
     setGroup(id);
+    setDocEnabled(false);
+    setRecoverable(false);
+    setDate(today);
     setVariant(
       id === "SALE"
         ? "SALE_SERVICE"
@@ -255,11 +264,21 @@ export default function Operations({
           interest:
             kind === "DEBT_PAYMENT" ? Math.round(Number(interest) * 100) : 0,
         };
-        const payload = JSON.stringify(operation);
+        const document = docEnabled
+          ? {
+              type: docType,
+              folio,
+              rut,
+              vat: Math.round(Number(vat) * 100),
+              recoverable,
+            }
+          : undefined;
+        const payload = JSON.stringify({ operation, document });
         if (request.current?.payload !== payload)
           request.current = { payload, id: crypto.randomUUID() };
         body = {
-          action: "operation",
+          action: docEnabled ? "receipt_operation" : "operation",
+          ...(document ? { document } : {}),
           operation: { ...operation, requestId: request.current.id },
         };
       }
@@ -432,9 +451,20 @@ export default function Operations({
                         disabled={busy}
                         onBusyChange={setScanning}
                         onExtract={(fields) => {
-                          if (fields.amount !== undefined)
-                            setAmount(String(fields.amount));
-                          if (fields.date) setDate(fields.date);
+                          setAmount(
+                            fields.amount === undefined
+                              ? ""
+                              : String(fields.amount),
+                          );
+                          setDate(fields.date ?? "");
+                          setDocEnabled(true);
+                          setDocType(fields.documentType ?? "RECEIPT");
+                          setFolio(fields.folio ?? "");
+                          setRut(fields.rut ?? "");
+                          setVat(
+                            fields.vat === undefined ? "" : String(fields.vat),
+                          );
+                          setRecoverable(false);
                           if (fields.description)
                             setDescription(fields.description);
                           if (fields.kind) {
@@ -450,7 +480,9 @@ export default function Operations({
                     <label htmlFor="operation-amount">
                       {kind === "DEBT_PAYMENT"
                         ? "Total pagado (capital + intereses)"
-                        : "¿Cuánto?"}{" "}
+                        : docEnabled
+                          ? "Total de la boleta o factura (IVA incluido)"
+                          : "¿Cuánto?"}{" "}
                       · {currency}
                     </label>
                     <input
@@ -464,6 +496,103 @@ export default function Operations({
                       max={20000000}
                       step={currency === "CLP" ? 1 : 0.01}
                     />
+                    {["SUPPLIES", "EXPENSE", "ASSET"].includes(group) && (
+                      <div className="mt-4 space-y-3">
+                        <label className="flex gap-2 items-center">
+                          <input
+                            type="checkbox"
+                            checked={docEnabled}
+                            onChange={(e) => setDocEnabled(e.target.checked)}
+                          />{" "}
+                          Tengo una boleta o factura para este gasto
+                        </label>
+                        {docEnabled && (
+                          <div className="space-y-3 rounded-xl border p-4">
+                            <h3 className="font-semibold">
+                              Revisa el documento antes de guardar
+                            </h3>
+                            <label>
+                              Tipo de documento
+                              <select
+                                value={docType}
+                                onChange={(e) => {
+                                  setDocType(e.target.value);
+                                  setRecoverable(false);
+                                  if (e.target.value === "EXEMPT") setVat("0");
+                                }}
+                              >
+                                <option value="RECEIPT">
+                                  Boleta de compra
+                                </option>
+                                <option value="INVOICE">Factura afecta</option>
+                                <option value="EXEMPT">Documento exento</option>
+                              </select>
+                            </label>
+                            <label>
+                              Folio / número de documento
+                              <input
+                                required
+                                value={folio}
+                                maxLength={80}
+                                onChange={(e) => setFolio(e.target.value)}
+                              />
+                            </label>
+                            <label>
+                              RUT del emisor
+                              <input
+                                value={rut}
+                                required={docType === "INVOICE"}
+                                placeholder="76.123.456-7"
+                                onChange={(e) => setRut(e.target.value)}
+                              />
+                            </label>
+                            <label>
+                              IVA que aparece en el documento (CLP)
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                required
+                                value={vat}
+                                onChange={(e) => setVat(e.target.value)}
+                              />
+                            </label>
+                            <p className="muted text-sm">
+                              Monto sin IVA:{" "}
+                              {amount && vat !== ""
+                                ? money(
+                                    Math.round(
+                                      (Number(amount) - Number(vat)) * 100,
+                                    ),
+                                    currency,
+                                  )
+                                : "Por confirmar"}
+                              . Si el documento no informa IVA, revisa su tipo
+                              antes de ingresar 0.
+                            </p>
+                            {docType === "INVOICE" && (
+                              <label className="flex gap-2 items-start">
+                                <input
+                                  type="checkbox"
+                                  checked={recoverable}
+                                  onChange={(e) =>
+                                    setRecoverable(e.target.checked)
+                                  }
+                                />{" "}
+                                Confirmé que esta factura corresponde al negocio
+                                y tiene derecho a crédito fiscal.
+                              </label>
+                            )}
+                            <p className="muted text-xs">
+                              La boleta de compra se registra completa como
+                              costo. Una factura solo descuenta IVA si confirmas
+                              el derecho a crédito. El gasto y su documento se
+                              guardan juntos, una sola vez.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {kind === "DEBT_PAYMENT" && (
                       <div className="mt-4">
                         <label htmlFor="operation-interest">
@@ -491,7 +620,10 @@ export default function Operations({
               </div>
               <div>
                 <div>
-                  <label htmlFor="operation-date">¿Cuándo? · {timezone}</label>
+                  <label htmlFor="operation-date">
+                    {docEnabled ? "Fecha de emisión del documento" : "¿Cuándo?"}{" "}
+                    · {timezone}
+                  </label>
                   <input
                     id="operation-date"
                     disabled={scanning || busy}

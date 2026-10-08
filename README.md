@@ -75,9 +75,9 @@ El panel abre en **Registrar operación**. El dueño elige una venta, compra de 
 
 La migración `202610070002_simple_operations` agrega ambas tablas, índices, RLS y controles de balance. Antes de aplicarla, las citas siguen funcionando y el panel avisa que falta activar operaciones. En Supabase creado manualmente, ejecuta **solo** el SQL de esta migración en SQL Editor; no vuelvas a crear las tablas iniciales. Los pagos y gastos anteriores se incorporan una vez sin borrarse; gastos históricos conservan un medio de pago "no registrado", en lugar de inventar que fueron efectivo o transferencia. Las citas completadas conservan Payment y además generan su asiento automáticamente.
 
-Los indicadores de Resumen reconocen ingresos y gastos cuando se registra la operación, aun pendiente; la sección Pendientes muestra lo que falta cobrar/pagar. Saldar un pendiente registra el importe completo (no incluye abonos parciales). El movimiento neto de dinero reúne entradas y salidas registradas; no es un saldo bancario real ni incluye un saldo inicial. El módulo es contabilidad de gestión: no incluye IVA separado, depreciación, inventario, conciliación bancaria ni presentación fiscal. Los insumos se tratan como gasto de consumo.
+Los indicadores de Resumen reconocen ingresos y gastos cuando se registra la operación, aun pendiente; la sección Pendientes muestra lo que falta cobrar/pagar. Saldar un pendiente registra el importe completo (no incluye abonos parciales). El movimiento neto de dinero reúne entradas y salidas registradas; no es un saldo bancario real ni incluye un saldo inicial. El módulo permite contabilidad de gestión e IVA documentado: no incluye depreciación, inventario, conciliación bancaria ni presentación fiscal. Los insumos se tratan como gasto de consumo.
 
-**Escanear comprobante:** el formulario acepta JPG/PNG/WebP de hasta 10 MB, incluyendo cámara del móvil. Tesseract.js lee la foto localmente y sugiere total y fecha; no envía ni conserva la foto. La primera carga necesita internet para descargar el lector/modelo de español desde los CDN del paquete. Los datos siempre son editables y requieren confirmación. No se reconoce PDF; una foto borrosa o un fallo de descarga mantiene disponible el ingreso manual.
+**Escanear comprobante:** acepta JPG/PNG/WebP, PDF de hasta cinco páginas y XML de un único DTE (factura/boleta 33, 34, 39 o 41), hasta 10 MB. El PDF extrae texto localmente y aplica OCR a páginas escaneadas; el XML lee `MntTotal`, `FchEmis`, folio, RUT y montos. El lector prioriza total final y fecha de emisión sobre subtotal, efectivo, vuelto, pago o vencimiento. Valores contradictorios o ausentes requieren revisión; no se sustituye una fecha ausente por la fecha de hoy. El dueño confirma importe, emisión, documento y pago. El gasto y su documento se guardan en una transacción idempotente. La lectura normal ocurre en el navegador, sin guardar el archivo.
 
 Validación: `npm test` cubre asientos, separación de capital/ganancia, pendientes y extracción de datos; `npm run test:finance` prueba operaciones y restricciones contra servidor y BD **locales**, con limpieza automática de datos de prueba. `npm run test:smoke` verifica reservas/agenda y que una cita completada no genere ingresos duplicados.
 
@@ -160,7 +160,7 @@ Para interpretación avanzada, configurar **OPENAI_API_KEY** como variable priva
 La opción IA solo aparece disponible si el servidor tiene una clave configurada;
 no se ha validado una conexión real con el proveedor sin esa credencial. Una clave
 configurada todavía necesita autorización y saldo en la cuenta del proveedor.
-El dueño activa la opción: solo el texto OCR se envía a OpenAI, mediante el servidor.
+El dueño activa la opción: el texto OCR y, en fotos, una imagen JPEG preparada se envían a OpenAI mediante el servidor.
 Las respuestas se validan, los valores desconocidos permanecen vacíos y se requiere
 confirmación. No se presume IVA recuperable ni se emiten documentos tributarios.
 
@@ -184,3 +184,11 @@ Las pestañas separan **Registrar una operación**, **Lo que tengo y debo**,
 **Ganancias y pérdidas**, **Libro diario (detalle)** e **IVA**. El botón de escaneo
 abre el formulario de compra con el lector existente. La agenda, la configuración,
 las correcciones auditables y los reportes Excel se conservan.
+
+### Rutina simple y tratamiento tributario
+
+Contabilidad incluye una guía para ventas, compras, pendientes y cierre mensual. Configuración permite UNKNOWN (predeterminado), AFFECTED o EXEMPT, con confirmación explícita. Las ventas nuevas en CLP de un negocio afecto separan IVA incluido al 19%, redondeado a pesos enteros. Los cambios no recalculan asientos anteriores. El resumen IVA y Excel reflejan la clasificación elegida y documentos registrados; no presentan F29 ni reemplazan el RCV. El libro diario ofrece reversión con motivo y conserva el historial.
+
+Con consentimiento, el lector IA puede enviar a OpenAI texto OCR y una imagen JPEG preparada de la foto. La clave permanece en el servidor. XML no necesita IA. PDF envía solamente texto, si el dueño activa la opción. El proveedor puede aplicar sus políticas de retención y facturación; la aplicación no guarda las fotos.
+
+La migración `202610080001_tax_profile` añade TaxProfile y ReceiptSubmission, gestionadas mediante SQL parametrizado. La actualización automática al acceder como dueño conserva registros existentes. Pruebas: `npm test`, `npx tsx scripts/receipt-documents-smoke.ts`, `npm run test:reports`; los smoke tests están limitados a base de datos y servidor locales y restauran configuración y datos de prueba.

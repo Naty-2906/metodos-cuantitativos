@@ -1,3 +1,4 @@
+import { readTaxProfile, vatIncluded, type TaxTreatment } from "./tax-profile";
 import type { Prisma } from "@prisma/client";
 import {
   buildEntry,
@@ -17,13 +18,28 @@ export async function writeOperation(
   input: Operation,
   currency: string,
   sourceKey: string,
+  treatment: TaxTreatment = "UNKNOWN",
 ) {
   const value = operationSchema.parse(input);
-  const { lines, pendingAccount } = buildEntry(value);
   const existing = await tx.journalEntry.findUnique({
     where: { sourceKey },
     include: { lines: true },
   });
+  const { lines, pendingAccount } = buildEntry(value);
+  if (value.kind.startsWith("SALE_") && currency === "CLP") {
+    const vat = existing
+      ? existing.lines
+          .filter((l) => l.account === "VAT_OUTPUT")
+          .reduce((n, l) => n + l.credit - l.debit, 0)
+      : treatment === "AFFECTED"
+        ? vatIncluded(value.amount).vat
+        : 0;
+    if (vat) {
+      const revenue = lines.find((l) => l.account.startsWith("REVENUE_"))!;
+      revenue.credit -= vat;
+      lines.push({ account: "VAT_OUTPUT", debit: 0, credit: vat });
+    }
+  }
   const category =
     value.kind === "EXPENSE"
       ? (value.category ?? "OTHER")
@@ -92,6 +108,7 @@ export async function importLegacy(
     tx.payment.findMany(),
     tx.expense.findMany(),
   ]);
+  const profile = await readTaxProfile(tx);
   for (const p of payments) {
     const key = "legacy:payment:" + p.id;
     if (keys.has(key)) continue;
@@ -109,6 +126,7 @@ export async function importLegacy(
       },
       currency,
       key,
+      p.date >= profile.updatedAt ? profile.treatment : "UNKNOWN",
     );
   }
   for (const e of expenses) {

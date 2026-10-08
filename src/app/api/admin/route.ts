@@ -1,3 +1,4 @@
+import { readTaxProfile } from "@/lib/tax-profile";
 import { ensureFinanceSchema } from "@/lib/ensure-finance-schema";
 import {
   documentSchema,
@@ -29,6 +30,16 @@ const interval = z
   })
   .refine((v) => new Date(v.start) < new Date(v.end), "Rango inválido");
 const action = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("tax_profile"),
+    treatment: z.enum(["UNKNOWN", "AFFECTED", "EXEMPT"]),
+    confirmed: z.literal(true),
+  }),
+  z.object({
+    action: z.literal("receipt_operation"),
+    operation: operationSchema,
+    document: documentSchema.innerType().omit({ id: true }),
+  }),
   z.object({ action: z.literal("document"), document: documentSchema }),
   z.object({
     action: z.literal("reverse"),
@@ -191,6 +202,7 @@ export async function GET() {
       expenses: finance.ready ? financeExpenses : expenses,
       payments: finance.ready ? financePayments : payments,
       finance,
+      taxProfile: await readTaxProfile(db),
       blocks,
       config,
     });
@@ -231,6 +243,55 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     const v = action.parse(body);
+    if (v.action === "tax_profile")
+      await db.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
+        const profile = await readTaxProfile(tx);
+        if (!profile.ready) throw Error("Actualización tributaria pendiente");
+        const config = await tx.businessConfig.findUniqueOrThrow({
+          where: { id: 1 },
+        });
+        if (v.treatment === "AFFECTED" && config.currency !== "CLP")
+          throw Error("El IVA chileno requiere moneda CLP");
+        await tx.$executeRaw`UPDATE "TaxProfile" SET "treatment"=${v.treatment},"updatedAt"=NOW() WHERE "id"=1`;
+      });
+    if (v.action === "receipt_operation")
+      await db.$transaction(
+        async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(29062026)`;
+          if (!["SUPPLIES", "EXPENSE", "ASSET"].includes(v.operation.kind))
+            throw Error(
+              "El documento de compra requiere un gasto, insumo o equipo",
+            );
+          const previous = await tx.$queryRaw<
+            { payload: unknown }[]
+          >`SELECT "payload" FROM "ReceiptSubmission" WHERE "requestId"=${v.operation.requestId}::uuid`;
+          const payload = JSON.stringify(v);
+          if (previous.length) {
+            const same = await tx.$queryRaw<
+              { same: boolean }[]
+            >`SELECT "payload"=${payload}::jsonb AS same FROM "ReceiptSubmission" WHERE "requestId"=${v.operation.requestId}::uuid`;
+            if (!same[0].same)
+              throw Error("Esta operación ya fue registrada con otros datos");
+            return;
+          }
+          const config = await tx.businessConfig.findUniqueOrThrow({
+            where: { id: 1 },
+          });
+          const entry = await writeOperation(
+            tx,
+            v.operation,
+            config.currency,
+            "manual:" + v.operation.requestId,
+          );
+          await annotate(
+            tx,
+            documentSchema.parse({ ...v.document, id: entry.id }),
+          );
+          await tx.$executeRaw`INSERT INTO "ReceiptSubmission" ("requestId","entryId","payload") VALUES (${v.operation.requestId}::uuid,${entry.id}::uuid,${payload}::jsonb)`;
+        },
+        { timeout: 20000 },
+      );
     if (v.action === "document" || v.action === "reverse")
       await db.$transaction(
         async (tx) => {
@@ -258,6 +319,7 @@ export async function POST(req: NextRequest) {
               v.operation,
               config.currency,
               "manual:" + v.operation.requestId,
+              (await readTaxProfile(tx)).treatment,
             );
           else await settlePending(tx, v);
         },
@@ -415,7 +477,11 @@ export async function POST(req: NextRequest) {
                 [
                   "Primero aplica el SQL de reportes",
                   "La operación no admite cambios",
-                  "Esta factura ya está asociada a otra operación vigente",
+                  "Este documento ya está asociado a otra operación vigente",
+                  "Actualización tributaria pendiente",
+                  "El IVA chileno requiere moneda CLP",
+                  "El documento de compra requiere un gasto, insumo o equipo",
+                  "Usa montos en pesos enteros para ventas con IVA",
                   "El documento ya está registrado; anula y registra la corrección",
                   "Revisa el IVA y la moneda de la operación",
                   "Anula la operación original, incluyendo su pago",

@@ -35,6 +35,7 @@ type Transaction = {
   appointment?: { service: { name: string } };
 };
 type Data = {
+  taxProfile?: { ready: boolean; treatment: "UNKNOWN" | "AFFECTED" | "EXEMPT" };
   finance: { documentsReady?: boolean; ready: boolean; entries: JournalView[] };
   schedule: ScheduleDates;
   scheduleReady: boolean;
@@ -639,6 +640,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
             {tab === "Contabilidad" && (
               <AccountingWorkspace
                 finance={data.finance}
+                taxProfile={data.taxProfile}
                 timezone={zone}
                 currency={data.config.currency}
                 busy={busy}
