@@ -337,17 +337,17 @@ export default function FinancialReports({
                         </select>
                       </label>
                       <label className="block">
-                        Folio o referencia
+                        Folio o referencia (opcional)
                         <input
                           className="input"
-                          required
+                          required={recoverable}
                           maxLength={80}
                           value={folio}
                           onChange={(e) => setFolio(e.target.value)}
                         />
                       </label>
                       <label className="block">
-                        RUT emisor (compras) / receptor (ventas)
+                        RUT emisor (compras) / receptor (ventas), opcional
                         <input
                           className="input"
                           placeholder="12345678-5"
@@ -365,7 +365,7 @@ export default function FinancialReports({
                             min="0"
                             step="1"
                             max={entry.amount / 100 - 1}
-                            required
+                            required={recoverable}
                             value={vat}
                             onChange={(e) => setVat(e.target.value)}
                           />

@@ -456,7 +456,7 @@ export default function Operations({
                               ? ""
                               : String(fields.amount),
                           );
-                          setDate(fields.date ?? "");
+                          setDate(fields.date ?? today);
                           setDocEnabled(true);
                           setDocType(fields.documentType ?? "RECEIPT");
                           setFolio(fields.folio ?? "");
@@ -529,30 +529,30 @@ export default function Operations({
                               </select>
                             </label>
                             <label>
-                              Folio / número de documento
+                              Folio / número de documento (opcional)
                               <input
-                                required
+                                required={recoverable}
                                 value={folio}
                                 maxLength={80}
                                 onChange={(e) => setFolio(e.target.value)}
                               />
                             </label>
                             <label>
-                              RUT del emisor
+                              RUT del emisor (opcional)
                               <input
                                 value={rut}
-                                required={docType === "INVOICE"}
+                                required={recoverable}
                                 placeholder="76.123.456-7"
                                 onChange={(e) => setRut(e.target.value)}
                               />
                             </label>
                             <label>
-                              IVA que aparece en el documento (CLP)
+                              IVA que aparece en el documento (opcional, CLP)
                               <input
                                 type="number"
                                 min="0"
                                 step="1"
-                                required
+                                required={recoverable}
                                 value={vat}
                                 onChange={(e) => setVat(e.target.value)}
                               />
@@ -567,8 +567,8 @@ export default function Operations({
                                     currency,
                                   )
                                 : "Por confirmar"}
-                              . Si el documento no informa IVA, revisa su tipo
-                              antes de ingresar 0.
+                              . Si no conoces el IVA, déjalo vacío: se registra
+                              el total como gasto, sin descontar IVA.
                             </p>
                             {docType === "INVOICE" && (
                               <label className="flex gap-2 items-start">
@@ -584,10 +584,11 @@ export default function Operations({
                               </label>
                             )}
                             <p className="muted text-xs">
-                              La boleta de compra se registra completa como
-                              costo. Una factura solo descuenta IVA si confirmas
-                              el derecho a crédito. El gasto y su documento se
-                              guardan juntos, una sola vez.
+                              Para llevar el conteo de gastos basta el total y
+                              la fecha. No necesitas folio ni RUT. Si no se
+                              detectó la fecha, aparece hoy y puedes cambiarla.
+                              Solo al descontar IVA se requiere una factura
+                              identificada.
                             </p>
                           </div>
                         )}
@@ -621,8 +622,8 @@ export default function Operations({
               <div>
                 <div>
                   <label htmlFor="operation-date">
-                    {docEnabled ? "Fecha de emisión del documento" : "¿Cuándo?"}{" "}
-                    · {timezone}
+                    {docEnabled ? "Fecha del gasto / emisión" : "¿Cuándo?"} ·{" "}
+                    {timezone}
                   </label>
                   <input
                     id="operation-date"

@@ -6,21 +6,19 @@ export const documentSchema = z
   .object({
     id: z.string().uuid(),
     type: z.enum(["INVOICE", "RECEIPT", "EXEMPT", "HONORARIUM", "SUPPORT"]),
-    folio: z.string().trim().min(1).max(80),
-    rut: z.string().trim().max(20),
+    folio: z.string().trim().max(80).default(""),
+    rut: z.string().trim().max(20).default(""),
     vat: z.number().int().min(0).max(2000000000),
     recoverable: z.boolean(),
   })
   .superRefine((v, c) => {
-    if (v.recoverable && (v.type !== "INVOICE" || !validRut(v.rut)))
+    if (v.recoverable && (v.type !== "INVOICE" || !validRut(v.rut) || !v.folio))
       c.addIssue({
         code: "custom",
-        message: "El crédito requiere factura y RUT válido",
+        message: "El crédito requiere factura, folio y RUT válido",
       });
     if (["EXEMPT", "HONORARIUM", "SUPPORT"].includes(v.type) && v.vat !== 0)
       c.addIssue({ code: "custom", message: "Este documento no registra IVA" });
-    if (v.rut && !validRut(v.rut))
-      c.addIssue({ code: "custom", message: "RUT inválido" });
   });
 export async function documentsReady(tx: Prisma.TransactionClient) {
   const r = await tx.$queryRaw<
@@ -81,7 +79,7 @@ export async function annotate(
   const sale = e.kind.startsWith("SALE_");
   if (sale && v.recoverable)
     throw Error("Revisa el IVA y la moneda de la operación");
-  if (v.type !== "SUPPORT" && v.rut) {
+  if (v.type !== "SUPPORT" && v.folio && validRut(v.rut)) {
     const normalizedRut = v.rut.replace(/[.\s]/g, "").toUpperCase();
     const duplicate = await tx.$queryRaw<
       { entryId: string }[]

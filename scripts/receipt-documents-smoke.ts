@@ -180,6 +180,29 @@ async function main() {
       }),
       0,
     );
+    for (const type of ["RECEIPT", "INVOICE", "INVOICE"]) {
+      const simple = randomUUID();
+      ids.push(simple);
+      assert.equal(
+        (
+          await post({
+            ...body,
+            operation: { ...body.operation, requestId: simple, state: "PAID" },
+            document: { type, folio: "", rut: "", vat: 0, recoverable: false },
+          })
+        ).status,
+        200,
+      );
+      const saved = await db.journalEntry.findUniqueOrThrow({
+        where: { sourceKey: "manual:" + simple },
+        include: { document: true, lines: true },
+      });
+      assert.equal(saved.document?.folio, "");
+      assert.equal(
+        saved.lines.find((l) => l.account === "EXPENSE_SUPPLIES")?.debit,
+        1190000,
+      );
+    }
     console.log(
       "IVA configurable, historial preservado, documento+gasto atómicos, reintentos y duplicados verificados.",
     );

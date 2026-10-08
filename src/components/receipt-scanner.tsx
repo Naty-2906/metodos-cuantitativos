@@ -3,10 +3,16 @@ import { useEffect, useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import {
   localReceiptExpense,
+  combineReceiptReads,
   type ReceiptExpense,
 } from "@/lib/receipt-expense";
 import { readDTE } from "@/lib/receipt-xml";
-import { pdfReceipt, receiptImage } from "@/lib/receipt-browser";
+import {
+  pdfReceipt,
+  receiptImage,
+  receiptContrast,
+  receiptTotalCrop,
+} from "@/lib/receipt-browser";
 export default function ReceiptScanner({
   currency,
   disabled,
@@ -66,6 +72,8 @@ export default function ReceiptScanner({
       let text = "",
         image: string | undefined,
         fields: ReceiptExpense;
+      let confidence = 0,
+        pass = "";
       const ocr = async (source: File | HTMLCanvasElement) => {
         if (!active) {
           const { createWorker } = await import("tesseract.js");
@@ -74,13 +82,14 @@ export default function ReceiptScanner({
             logger: (m) => {
               if (alive.current && m.status === "recognizing text")
                 setStatus(
-                  `Leyendo documento… ${Math.round(m.progress * 100)}%`,
+                  `${pass || "Leyendo documento"}… ${Math.round(m.progress * 100)}%`,
                 );
             },
           });
           worker.current = active;
         }
         const result = await active.recognize(source);
+        confidence = result.data.confidence;
         return result.data.text;
       };
       if (
@@ -101,12 +110,52 @@ export default function ReceiptScanner({
         if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
           setStatus("Leyendo las páginas del PDF…");
           text = await pdfReceipt(file, ocr);
+          fields = localReceiptExpense(text, currency);
         } else {
           const prepared = await receiptImage(file);
           image = prepared.image;
+          pass = "Lectura 1 de 2: foto original";
           text = await ocr(prepared.canvas);
+          const reads = [
+            { fields: localReceiptExpense(text, currency), confidence },
+          ];
+          try {
+            pass = "Lectura 2 de 2: más contraste";
+            const contrasted = receiptContrast(prepared.canvas);
+            const second = await ocr(contrasted);
+            reads.push({
+              fields: localReceiptExpense(second, currency),
+              confidence,
+            });
+            text += "\n--- Segunda lectura del mismo documento ---\n" + second;
+            const first = reads[0].fields,
+              next = reads[1].fields;
+            if (
+              !first.amount ||
+              !next.amount ||
+              !first.date ||
+              !next.date ||
+              first.amount !== next.amount ||
+              first.date !== next.date ||
+              reads.some((r) => r.confidence < 75)
+            ) {
+              pass = "Lectura 3: revisando la zona del total";
+              const third = await ocr(receiptTotalCrop(contrasted));
+              reads.push({
+                fields: localReceiptExpense(third, currency),
+                confidence,
+              });
+              text +=
+                "\n--- Revisión de la zona inferior del mismo documento ---\n" +
+                third;
+            }
+          } catch {
+            reads[0].fields.warnings.push(
+              "La revisión adicional no pudo completarse. Conservamos la primera lectura para que puedas revisarla.",
+            );
+          }
+          fields = combineReceiptReads(reads);
         }
-        fields = localReceiptExpense(text, currency);
       }
       if (!alive.current) return;
       let interpreted = false;
@@ -145,8 +194,8 @@ export default function ReceiptScanner({
           fields = {
             ...fields,
             ...ai,
-            amount: fields.amount ?? ai.amount,
-            date: fields.date ?? ai.date,
+            amount: ai.amount ?? fields.amount,
+            date: ai.date ?? fields.date,
             vat: fields.vat,
             net: fields.net,
             folio: fields.folio,
@@ -179,7 +228,7 @@ export default function ReceiptScanner({
       setStatus(
         interpreted
           ? "Propuesta interpretada con IA. Revisa antes de usarla."
-          : "Propuesta de la lectura automática. Revisa antes de usarla.",
+          : "Documento revisado automáticamente. Comprueba los valores antes de usarlos.",
       );
     } catch (error) {
       if (alive.current)
@@ -224,7 +273,7 @@ export default function ReceiptScanner({
         </p>
       )}
       <p className="text-xs muted mt-2">
-        1. Elige el documento · 2. Revisa total y emisión · 3. Guarda la compra
+        1. Elige el documento · 2. Revisa total y fecha · 3. Guarda la compra
       </p>
       <input
         id="receipt-photo"
@@ -254,10 +303,11 @@ export default function ReceiptScanner({
         />
       </label>
       <p className="muted text-xs leading-5 mt-2">
-        La lectura normal de fotos, PDF y XML ocurre en tu dispositivo. Si
-        activas la IA, se envían el texto y la imagen preparada de la foto a
-        OpenAI. La primera lectura descarga el lector de texto y necesita
-        internet. Siempre confirma los datos sugeridos.
+        Las fotos se revisan con una lectura normal y otra con más contraste. Si
+        hay dudas, también se revisa la zona del total. La lectura normal ocurre
+        en tu dispositivo. Si activas la IA, se envían el texto y la imagen
+        preparada de la foto a OpenAI. La primera lectura descarga el lector de
+        texto y necesita internet. Siempre confirma los datos sugeridos.
       </p>
       <p role="status" className="text-xs mt-2">
         {status}

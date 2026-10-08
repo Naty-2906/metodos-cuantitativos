@@ -75,3 +75,40 @@ test("AI can express uncertainty rather than inventing a purchase", () => {
   assert.equal(r.kind, undefined);
   assert.equal(r.warnings.length, 2);
 });
+
+test("multiple reads recover missing values and preserve item detail", async () => {
+  const { combineReceiptReads } = await import("../src/lib/receipt-expense");
+  const first = localReceiptExpense(
+    "Cuchillas 2 10000\nFecha emision 07/10/2026",
+    "CLP",
+  );
+  const second = localReceiptExpense(
+    "Cuchillas 2 10000\nFecha emision 07/10/2026\nTOTAL 11900",
+    "CLP",
+  );
+  const third = localReceiptExpense("TOTAL 11900", "CLP");
+  const r = combineReceiptReads([
+    { fields: first, confidence: 70 },
+    { fields: second, confidence: 82 },
+    { fields: third, confidence: 95 },
+  ]);
+  assert.equal(r.amount, 11900);
+  assert.equal(r.date, "2026-10-07");
+  assert.match(r.description!, /Cuchillas/);
+  assert.equal(r.items.length, 1);
+  assert.ok(
+    !r.warnings.some((w) =>
+      /No encontramos un total seguro|No encontramos la fecha/.test(w),
+    ),
+  );
+});
+test("multiple reads use agreement over confidence and disclose different totals", async () => {
+  const { combineReceiptReads } = await import("../src/lib/receipt-expense");
+  const r = combineReceiptReads([
+    { fields: localReceiptExpense("TOTAL 11900", "CLP"), confidence: 60 },
+    { fields: localReceiptExpense("TOTAL 17900", "CLP"), confidence: 95 },
+    { fields: localReceiptExpense("TOTAL 11900", "CLP"), confidence: 80 },
+  ]);
+  assert.equal(r.amount, 11900);
+  assert.ok(r.warnings.some((w) => w.includes("totales distintos")));
+});

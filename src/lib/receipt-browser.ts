@@ -57,3 +57,34 @@ export async function pdfReceipt(
     await task.destroy();
   }
 }
+
+export function receiptContrast(source: HTMLCanvasElement) {
+  const canvas = document.createElement("canvas");
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw Error("No se pudo preparar la segunda lectura");
+  ctx.filter = "grayscale(1) contrast(1.6) brightness(1.1)";
+  ctx.drawImage(source, 0, 0);
+  return canvas;
+}
+export function receiptTotalCrop(source: HTMLCanvasElement) {
+  const canvas = document.createElement("canvas");
+  const top = Math.floor(source.height * 0.4);
+  canvas.width = source.width;
+  canvas.height = source.height - top;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw Error("No se pudo revisar el total");
+  ctx.drawImage(
+    source,
+    0,
+    top,
+    source.width,
+    canvas.height,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+  return canvas;
+}

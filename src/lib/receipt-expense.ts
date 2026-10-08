@@ -168,3 +168,64 @@ export function validateAIReceipt(
     ],
   };
 }
+
+export function combineReceiptReads(
+  reads: { fields: ReceiptExpense; confidence: number }[],
+): ReceiptExpense {
+  if (!reads.length) throw Error("No hay lecturas del documento");
+  const sorted = [...reads].sort((a, b) => b.confidence - a.confidence);
+  const best = [...sorted].sort(
+    (a, b) => b.fields.items.length - a.fields.items.length,
+  )[0].fields;
+  const warnings = [...new Set(reads.flatMap((r) => r.fields.warnings))];
+  function choose<T>(
+    values: { value: T | undefined; confidence: number }[],
+    label: string,
+  ): T | undefined {
+    const options = new Map<T, { count: number; confidence: number }>();
+    for (const v of values)
+      if (v.value !== undefined) {
+        const current = options.get(v.value);
+        options.set(v.value, {
+          count: (current?.count ?? 0) + 1,
+          confidence: Math.max(current?.confidence ?? 0, v.confidence),
+        });
+      }
+    const ranked = [...options].sort(
+      (a, b) => b[1].count - a[1].count || b[1].confidence - a[1].confidence,
+    );
+    if (ranked.length > 1)
+      warnings.push(
+        `Las lecturas muestran ${label} distintos. Dejamos el valor mejor respaldado; puedes corregirlo.`,
+      );
+    return ranked[0]?.[0];
+  }
+  const amount = choose(
+    reads.map((r) => ({ value: r.fields.amount, confidence: r.confidence })),
+    "totales",
+  );
+  const date = choose(
+    reads.map((r) => ({ value: r.fields.date, confidence: r.confidence })),
+    "fechas",
+  );
+  return {
+    ...best,
+    amount,
+    date,
+    vat: sorted.find((r) => r.fields.vat !== undefined)?.fields.vat,
+    net: sorted.find((r) => r.fields.net !== undefined)?.fields.net,
+    folio: sorted.find((r) => r.fields.folio)?.fields.folio,
+    rut: sorted.find((r) => r.fields.rut)?.fields.rut,
+    documentType: sorted.find((r) => r.fields.documentType)?.fields
+      .documentType,
+    kind: warnings.some((w) => w.includes("mezclados"))
+      ? undefined
+      : sorted.find((r) => r.fields.kind)?.fields.kind,
+    category: sorted.find((r) => r.fields.category)?.fields.category,
+    warnings: [...new Set(warnings)].filter(
+      (w) =>
+        !(amount !== undefined && /No encontramos un total seguro/.test(w)) &&
+        !(date && /No encontramos la fecha/.test(w)),
+    ),
+  };
+}
