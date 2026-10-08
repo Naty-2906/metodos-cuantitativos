@@ -1,6 +1,5 @@
 "use client";
-import FinancialReports from "./financial-reports";
-import Operations from "./operations";
+import AccountingWorkspace from "./accounting-workspace";
 import type { JournalView } from "@/lib/accounting";
 import ScheduleSettings from "./schedule-settings";
 import type { ScheduleDates } from "@/lib/schedule";
@@ -57,7 +56,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
     [data, setData] = useState<Data>(),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [tab, setTab] = useState("Mi dinero"),
+    [tab, setTab] = useState("Resumen"),
     [period, setPeriod] = useState("month"),
     [day, setDay] = useState(""),
     [week, setWeek] = useState(false);
@@ -195,6 +194,7 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
               {busy ? "Entrando…" : "Entrar al negocio"}
             </button>
           </form>
+          <div className="mt-8" />
           {error && (
             <p role="alert" className="text-red-700 text-sm mt-4">
               {error}
@@ -204,13 +204,42 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
       </main>
     );
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-[#dfe4d9] bg-white px-6 py-5 flex items-center justify-between">
-        <a href="/" className="font-bold flex items-center gap-2">
-          <Scissors className="text-[#52754c]" /> AURA BARBERÍA{" "}
-          <span className="hidden sm:inline text-xs font-normal muted ml-4">
-            ESPACIO DEL BARBERO
+    <div className="admin-shell min-h-screen">
+      <aside className="admin-sidebar">
+        <a href="/" className="font-bold text-xl flex items-center gap-3">
+          <span className="rounded-xl bg-[#214e3f] text-white p-2">
+            <Scissors size={22} />
           </span>
+          AURA<span className="text-[#ba9562]">.</span>
+        </a>
+        <p className="eyebrow mt-12 mb-5">MI BARBERÍA</p>
+        <nav aria-label="Panel del barbero" className="admin-side-nav">
+          {["Resumen", "Agenda", "Contabilidad", "Configuración"].map((t) => (
+            <button
+              type="button"
+              key={t}
+              onClick={() => setTab(t)}
+              aria-current={tab === t ? "page" : undefined}
+              className={tab === t ? "admin-nav-active" : ""}
+            >
+              {t === "Resumen" ? (
+                <TrendingUp size={17} />
+              ) : t === "Agenda" ? (
+                <Activity size={17} />
+              ) : t === "Contabilidad" ? (
+                <Wallet size={17} />
+              ) : (
+                <Receipt size={17} />
+              )}{" "}
+              {t}
+            </button>
+          ))}
+        </nav>
+      </aside>
+      <header className="admin-topbar border-b border-[#dfe4d9] px-6 py-5 flex items-center justify-between">
+        <span className="eyebrow font-normal">PANEL DEL BARBERO</span>
+        <a href="/" className="text-sm text-[#527461] ml-auto mr-6">
+          Reservas de clientes
         </a>
         <button
           onClick={() => send({ action: "logout" })}
@@ -220,14 +249,20 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
           <LogOut size={16} /> Salir
         </button>
       </header>
-      <div className="max-w-7xl mx-auto px-6 py-9">
-        <div className="flex flex-wrap justify-between items-end gap-4">
+      <div className="admin-main max-w-7xl px-6 py-9">
+        <div
+          className={`flex flex-wrap justify-between items-end gap-4 ${tab === "Contabilidad" ? "hidden" : ""}`}
+        >
           <div>
             <p className="eyebrow">CADA DETALLE CUENTA</p>
             <h1 className="text-3xl md:text-4xl font-medium mt-2">
-              {tab === "Mi dinero"
+              {tab === "Contabilidad"
                 ? "Tu negocio, sin complicaciones."
-                : "Tu negocio, de un vistazo."}
+                : tab === "Resumen"
+                  ? "Así va tu negocio."
+                  : tab === "Agenda"
+                    ? "Tu agenda."
+                    : "Tu barbería, a tu manera."}
             </h1>
             <p className="muted text-sm mt-3">
               Registra lo que pasó con palabras simples. Nosotros ordenamos los
@@ -240,17 +275,6 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
           >
             Ver portal de reservas <ArrowUpRight size={15} />
           </a>
-        </div>
-        <div className="flex overflow-auto gap-7 border-b border-[#dfe4d9] my-8">
-          {["Mi dinero", "Resumen", "Agenda", "Configuración"].map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`pb-4 text-sm whitespace-nowrap ${tab === t ? "border-b-2 border-[#294e3b] font-semibold" : "muted"}`}
-            >
-              {t}
-            </button>
-          ))}
         </div>
         {error && (
           <p
@@ -291,24 +315,24 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
                 <p className="muted text-xs leading-5 mb-4">
                   Incluye ventas y gastos del período aunque estén pendientes.
                   Los aportes, retiros, préstamos y compras de máquinas se
-                  muestran en Mi dinero.
+                  muestran en Contabilidad.
                 </p>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
                     [
-                      "Ingresos generados",
+                      "Ingresos contables",
                       money(income),
                       Wallet,
                       "Ventas y servicios del período",
                     ],
                     [
-                      "Gastos del período",
+                      "Gastos y costos",
                       money(cost),
                       Receipt,
-                      "Inversión en tu negocio",
+                      "Según tus gastos registrados",
                     ],
                     [
-                      "Ganancia neta",
+                      "Ganancia del mes",
                       money(net),
                       TrendingUp,
                       `${margin.toFixed(1)}% de margen`,
@@ -329,7 +353,10 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
                   ].map(([title, value, Icon, detail]) => {
                     const I = Icon as typeof Wallet;
                     return (
-                      <div className={card} key={String(title)}>
+                      <div
+                        className={`${card} ${title === "Ganancia del mes" ? "profit-highlight" : ""}`}
+                        key={String(title)}
+                      >
                         <div className="flex justify-between">
                           <p className="muted text-xs">{String(title)}</p>
                           <I size={18} className="text-[#78916c]" />
@@ -609,23 +636,15 @@ export default function Admin({ authenticated }: { authenticated: boolean }) {
                 </section>
               </>
             )}
-            {tab === "Mi dinero" && (
-              <>
-                <FinancialReports
-                  finance={data.finance}
-                  timezone={zone}
-                  currency={data.config.currency}
-                  busy={busy}
-                  send={send}
-                />
-                <Operations
-                  finance={data.finance}
-                  timezone={zone}
-                  currency={data.config.currency}
-                  busy={busy}
-                  send={send}
-                />
-              </>
+            {tab === "Contabilidad" && (
+              <AccountingWorkspace
+                finance={data.finance}
+                timezone={zone}
+                currency={data.config.currency}
+                busy={busy}
+                send={send}
+                onSettings={() => setTab("Configuración")}
+              />
             )}
             {tab === "Configuración" && (
               <ScheduleSettings

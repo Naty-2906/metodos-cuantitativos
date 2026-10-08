@@ -217,3 +217,22 @@ h3 {
 .barber-pole {position:absolute;top:140px;right:24px;width:28px;height:100px;border:3px solid #242424;border-radius:18px;background:#eee;box-shadow:0 5px 15px #0002;overflow:hidden;pointer-events:none;}
 .barber-pole span {display:block;height:100%;background:repeating-linear-gradient(135deg,#a62b32 0 14px,#fff 14px 28px,#214f83 28px 42px,#fff 42px 56px);}
 @media(max-width:768px){.barber-pole{top:108px;right:16px;width:20px;height:65px;}}
+
+.admin-shell{background:#f4f7f7;min-height:100vh;color:#263131;}
+.admin-sidebar{position:fixed;inset:0 auto 0 0;width:220px;background:white;border-right:1px solid #dde5e1;padding:30px 18px;z-index:20;}
+.admin-side-nav{display:flex;flex-direction:column;gap:10px;}
+.admin-side-nav button{display:flex;align-items:center;gap:12px;padding:15px;border-radius:10px;text-align:left;font-size:14px;font-weight:600;color:#7b8981;}
+.admin-side-nav .admin-nav-active{background:#e9f2ed;color:#245740;}
+.admin-main{margin-left:220px;padding:40px;max-width:calc(1280px + 220px);}
+.admin-topbar{margin-left:220px;background:#f4f7f7;}
+.admin-shell .card{border-radius:14px;border-color:#dce5df;}
+.admin-shell .primary,.admin-shell .btn{background:#245740;}
+.operations-picker .eyebrow{color:#789c88;}
+.operation-tile{display:flex;align-items:center;gap:14px;padding:24px 16px;min-height:96px;text-align:left;background:white;border:1px solid #dce5df;border-radius:13px;}
+.operation-tile:hover,.operation-tile-active{border-color:#3f8069;background:#fff;}
+.operation-icon{display:flex;align-items:center;justify-content:center;background:#ecf4ef;color:#468467;border-radius:10px;width:42px;height:42px;flex-shrink:0;}
+.accounting-tab{display:flex;align-items:center;gap:8px;background:white;border:1px solid #dce5df;border-radius:9px;padding:12px 16px;color:#73877b;font-size:13px;font-weight:600;}
+.accounting-tab-active{background:#245740;color:white;border-color:#245740;}
+@media(max-width:900px){.admin-sidebar{position:relative;width:100%;padding:16px;border-right:0;border-bottom:1px solid #dce5df;}.admin-sidebar>.eyebrow{display:none;}.admin-side-nav{flex-direction:row;overflow:auto;gap:6px;margin-top:15px;}.admin-side-nav button{white-space:nowrap;padding:10px;}.admin-main{margin-left:0;padding:24px 16px;}.admin-topbar{margin-left:0;}.operation-tile{padding:18px 14px;}}
+.admin-shell .profit-highlight{background:#214e3f;color:white;}.admin-shell .profit-highlight .muted{color:#c0d7cd;}.admin-shell .profit-highlight svg{color:#c0d7cd;}
+.admin-shell .border-t,.admin-shell .border-b{border-color:#dde5e1;}

@@ -7,6 +7,7 @@ type Props = {
   finance: { ready: boolean; documentsReady?: boolean; entries: JournalView[] };
   timezone: string;
   currency: string;
+  mode?: "results" | "documents";
   busy: boolean;
   send: (body: Record<string, unknown>) => Promise<boolean | undefined>;
 };
@@ -16,6 +17,7 @@ export default function FinancialReports({
   currency,
   busy,
   send,
+  mode = "results",
 }: Props) {
   const [month, setMonth] = useState(() =>
       formatInTimeZone(new Date(), timezone, "yyyy-MM"),
@@ -62,202 +64,210 @@ export default function FinancialReports({
   }
   return (
     <section className="card mb-6 space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="eyebrow">TU NEGOCIO, EN SIMPLE</p>
-          <h2 className="text-2xl font-semibold">¿Cómo va este mes?</h2>
-        </div>
-        <label>
-          Elige el mes
-          <input
-            aria-label="Mes del resumen"
-            type="month"
-            className="input"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-          />
-        </label>
-      </div>
-      <a href="#anotar-movimiento" className="btn inline-flex">
-        Anotar una venta o un gasto
-      </a>
-      <div className="grid sm:grid-cols-3 gap-3">
-        {[
-          [
-            "Lo que vendiste",
-            r.totals.income,
-            "Tus cortes y productos vendidos.",
-          ],
-          [
-            "Gastos del negocio",
-            r.totals.expenses,
-            "Insumos, arriendo y otros gastos.",
-          ],
-          [
-            r.totals.profit < 0 ? "Pérdida estimada" : "Ganancia estimada",
-            r.totals.profit,
-            "Lo vendido menos los gastos, antes de impuestos.",
-          ],
-        ].map(([label, n, help]) => (
-          <div className="rounded-xl bg-[#f4f1eb] p-4" key={String(label)}>
-            <p className="text-sm">{label}</p>
-            <strong className="text-2xl block mt-2">{money(Number(n))}</strong>
-            <p className="muted text-xs mt-2">{help}</p>
+      {mode === "results" && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="eyebrow">TU NEGOCIO, EN SIMPLE</p>
+              <h2 className="text-2xl font-semibold">¿Cómo va este mes?</h2>
+            </div>
+            <label>
+              Elige el mes
+              <input
+                aria-label="Mes del resumen"
+                type="month"
+                className="input"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+              />
+            </label>
           </div>
-        ))}
-      </div>
-      <p className="text-sm muted">
-        También se cuenta lo que quedó pendiente de cobrar o pagar. Por eso tu
-        ganancia puede ser distinta del dinero que tienes disponible.
-      </p>
-      <div className="grid sm:grid-cols-2 gap-3">
-        <div className="rounded-xl border p-4">
-          <p className="text-sm">Dinero que entró este mes</p>
-          <strong className="text-xl">{money(r.cashIn)}</strong>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm">Dinero que salió este mes</p>
-          <strong className="text-xl">{money(r.cashOut)}</strong>
-        </div>
-      </div>
-      <p className="text-xs muted">
-        Estas entradas y salidas también incluyen préstamos, dinero personal y
-        compras de equipos. Son movimientos registrados, no el saldo de tu
-        cuenta bancaria.
-      </p>
-      <div className="rounded-xl bg-[#f5f7f2] p-4 text-sm space-y-2">
-        <p>
-          Al cierre del mes,{" "}
-          <strong>te deben {money(r.cumulative.receivable)}</strong> y{" "}
-          <strong>debes pagar {money(r.cumulative.payable)}</strong> en compras
-          pendientes.
-        </p>
-        <p>
-          Para marcar un cobro o pago, baja a{" "}
-          <strong>Por cobrar / pagar</strong>.
-        </p>
-      </div>
-      {finance.ready && month && (
-        <a
-          className="btn inline-flex"
-          href={`/api/admin/report?month=${encodeURIComponent(month)}`}
-        >
-          Descargar resumen para mi contador
-        </a>
-      )}
-      <p className="text-xs muted">
-        El Excel incluye los informes detallados para revisión. No envía una
-        declaración al SII.
-      </p>
-      <details className="border rounded-xl p-4">
-        <summary className="cursor-pointer font-semibold">
-          Impuestos e informes detallados (opcional)
-        </summary>
-        <div className="space-y-5 mt-4">
-          <details>
-            <summary className="font-semibold cursor-pointer">
-              Desglose de ingresos y gastos
-            </summary>
-            <div className="space-y-2 mt-3">
-              {r.resultAccounts.map((v) => (
-                <p className="flex justify-between text-sm" key={v.account}>
-                  <span>
-                    {accountNames[v.account as keyof typeof accountNames]}
-                  </span>
-                  <strong>{money(v.amount)}</strong>
-                </p>
-              ))}
-            </div>
-          </details>
-          <details>
-            <summary className="font-semibold cursor-pointer">
-              Balance general de los registros
-            </summary>
-            <div className="grid sm:grid-cols-3 gap-3 mt-3">
-              {[
-                ["Activos", r.assets],
-                ["Pasivos", r.liabilities],
-                ["Patrimonio y resultado", r.equity],
-              ].map(([label, n]) => (
-                <p key={String(label)} className="text-sm">
-                  {label}: <strong>{money(Number(n))}</strong>
-                </p>
-              ))}
-            </div>
-            <p className="text-xs muted mt-2">
-              Balance desde el primer movimiento, sujeto a revisión y saldos de
-              apertura. Diferencia de cuadre: {money(r.balanceDifference)}.
-            </p>
-          </details>
-          {!finance.ready && (
-            <p className="text-amber-800 text-sm">
-              Primero activa la contabilidad con el SQL de actualización;
-              todavía no hay un libro contable disponible.
-            </p>
-          )}
-          <h3 className="font-semibold">IVA según tus documentos</h3>
-          <div className="grid sm:grid-cols-2 gap-2 text-sm">
+          <a href="#anotar-movimiento" className="btn inline-flex">
+            Anotar una venta o un gasto
+          </a>
+          <div className="grid sm:grid-cols-3 gap-3">
             {[
-              ["IVA débito (ventas)", r.vatOutput],
-              ["IVA crédito confirmado", r.vatInput],
-              ["IVA en compras del mes", r.purchaseVat],
-              ["IVA en compras pagadas este mes", r.paidPurchaseVat],
-              ["Diferencia débito / crédito", r.vatDifference],
-            ].map(([s, n]) => (
-              <p key={String(s)}>
-                {s}: <strong>{money(Number(n))}</strong>
-              </p>
+              [
+                "Lo que vendiste",
+                r.totals.income,
+                "Tus cortes y productos vendidos.",
+              ],
+              [
+                "Gastos del negocio",
+                r.totals.expenses,
+                "Insumos, arriendo y otros gastos.",
+              ],
+              [
+                r.totals.profit < 0 ? "Pérdida estimada" : "Ganancia estimada",
+                r.totals.profit,
+                "Lo vendido menos los gastos, antes de impuestos.",
+              ],
+            ].map(([label, n, help]) => (
+              <div className="rounded-xl bg-[#f4f1eb] p-4" key={String(label)}>
+                <p className="text-sm">{label}</p>
+                <strong className="text-2xl block mt-2">
+                  {money(Number(n))}
+                </strong>
+                <p className="muted text-xs mt-2">{help}</p>
+              </div>
             ))}
           </div>
-          <p className="rounded-xl bg-amber-50 p-3 text-sm">
-            Régimen tributario por confirmar. {r.missing} operaciones del mes
-            necesitan revisión documental. Estos montos son un respaldo: deben
-            cotejarse con el Registro de Compras y Ventas y revisarse antes de
-            declarar al SII.
+          <p className="text-sm muted">
+            También se cuenta lo que quedó pendiente de cobrar o pagar. Por eso
+            tu ganancia puede ser distinta del dinero que tienes disponible.
           </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="rounded-xl border p-4">
+              <p className="text-sm">Dinero que entró este mes</p>
+              <strong className="text-xl">{money(r.cashIn)}</strong>
+            </div>
+            <div className="rounded-xl border p-4">
+              <p className="text-sm">Dinero que salió este mes</p>
+              <strong className="text-xl">{money(r.cashOut)}</strong>
+            </div>
+          </div>
+          <p className="text-xs muted">
+            Estas entradas y salidas también incluyen préstamos, dinero personal
+            y compras de equipos. Son movimientos registrados, no el saldo de tu
+            cuenta bancaria.
+          </p>
+          <div className="rounded-xl bg-[#f5f7f2] p-4 text-sm space-y-2">
+            <p>
+              Al cierre del mes,{" "}
+              <strong>te deben {money(r.cumulative.receivable)}</strong> y{" "}
+              <strong>debes pagar {money(r.cumulative.payable)}</strong> en
+              compras pendientes.
+            </p>
+            <p>
+              Para marcar un cobro o pago, baja a{" "}
+              <strong>Por cobrar / pagar</strong>.
+            </p>
+          </div>
           {finance.ready && month && (
             <a
               className="btn inline-flex"
               href={`/api/admin/report?month=${encodeURIComponent(month)}`}
             >
-              Descargar Excel (.xlsx)
+              Descargar resumen para mi contador
             </a>
           )}
-          <details>
+          <p className="text-xs muted">
+            El Excel incluye los informes detallados para revisión. No envía una
+            declaración al SII.
+          </p>
+          <details className="border rounded-xl p-4">
             <summary className="cursor-pointer font-semibold">
-              Balance de comprobación acumulado
+              Impuestos e informes detallados (opcional)
             </summary>
-            <div className="overflow-x-auto mt-3">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="text-left">Cuenta</th>
-                    <th>Debe</th>
-                    <th>Haber</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.balances.map((b) => (
-                    <tr key={b.account}>
-                      <td>
-                        {accountNames[b.account as keyof typeof accountNames] ??
-                          b.account}
-                      </td>
-                      <td className="text-right">{money(b.debit)}</td>
-                      <td className="text-right">{money(b.credit)}</td>
-                    </tr>
+            <div className="space-y-5 mt-4">
+              <details>
+                <summary className="font-semibold cursor-pointer">
+                  Desglose de ingresos y gastos
+                </summary>
+                <div className="space-y-2 mt-3">
+                  {r.resultAccounts.map((v) => (
+                    <p className="flex justify-between text-sm" key={v.account}>
+                      <span>
+                        {accountNames[v.account as keyof typeof accountNames]}
+                      </span>
+                      <strong>{money(v.amount)}</strong>
+                    </p>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              </details>
+              <details>
+                <summary className="font-semibold cursor-pointer">
+                  Balance general de los registros
+                </summary>
+                <div className="grid sm:grid-cols-3 gap-3 mt-3">
+                  {[
+                    ["Activos", r.assets],
+                    ["Pasivos", r.liabilities],
+                    ["Patrimonio y resultado", r.equity],
+                  ].map(([label, n]) => (
+                    <p key={String(label)} className="text-sm">
+                      {label}: <strong>{money(Number(n))}</strong>
+                    </p>
+                  ))}
+                </div>
+                <p className="text-xs muted mt-2">
+                  Balance desde el primer movimiento, sujeto a revisión y saldos
+                  de apertura. Diferencia de cuadre:{" "}
+                  {money(r.balanceDifference)}.
+                </p>
+              </details>
+              {!finance.ready && (
+                <p className="text-amber-800 text-sm">
+                  Primero activa la contabilidad con el SQL de actualización;
+                  todavía no hay un libro contable disponible.
+                </p>
+              )}
+              <h3 className="font-semibold">IVA según tus documentos</h3>
+              <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                {[
+                  ["IVA débito (ventas)", r.vatOutput],
+                  ["IVA crédito confirmado", r.vatInput],
+                  ["IVA en compras del mes", r.purchaseVat],
+                  ["IVA en compras pagadas este mes", r.paidPurchaseVat],
+                  ["Diferencia débito / crédito", r.vatDifference],
+                ].map(([s, n]) => (
+                  <p key={String(s)}>
+                    {s}: <strong>{money(Number(n))}</strong>
+                  </p>
+                ))}
+              </div>
+              <p className="rounded-xl bg-amber-50 p-3 text-sm">
+                Régimen tributario por confirmar. {r.missing} operaciones del
+                mes necesitan revisión documental. Estos montos son un respaldo:
+                deben cotejarse con el Registro de Compras y Ventas y revisarse
+                antes de declarar al SII.
+              </p>
+              {finance.ready && month && (
+                <a
+                  className="btn inline-flex"
+                  href={`/api/admin/report?month=${encodeURIComponent(month)}`}
+                >
+                  Descargar Excel (.xlsx)
+                </a>
+              )}
+              <details>
+                <summary className="cursor-pointer font-semibold">
+                  Balance de comprobación acumulado
+                </summary>
+                <div className="overflow-x-auto mt-3">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr>
+                        <th className="text-left">Cuenta</th>
+                        <th>Debe</th>
+                        <th>Haber</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {r.balances.map((b) => (
+                        <tr key={b.account}>
+                          <td>
+                            {accountNames[
+                              b.account as keyof typeof accountNames
+                            ] ?? b.account}
+                          </td>
+                          <td className="text-right">{money(b.debit)}</td>
+                          <td className="text-right">{money(b.credit)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="muted text-xs mt-2">
+                  Desde el primer registro hasta el mes elegido. Los saldos de
+                  apertura, depreciaciones e impuestos no registrados requieren
+                  revisión del contador.
+                </p>
+              </details>
             </div>
-            <p className="muted text-xs mt-2">
-              Desde el primer registro hasta el mes elegido. Los saldos de
-              apertura, depreciaciones e impuestos no registrados requieren
-              revisión del contador.
-            </p>
           </details>
-        </div>
-      </details>
+        </>
+      )}
       <details>
         <summary className="cursor-pointer font-semibold">
           Me equivoqué en un registro / agregar una boleta

@@ -10,6 +10,12 @@ import {
   Landmark,
   ArrowRight,
   Check,
+  Home,
+  Lightbulb,
+  Package,
+  ArrowDownLeft,
+  ScanLine,
+  BookOpen,
 } from "lucide-react";
 import {
   accountNames,
@@ -25,44 +31,139 @@ type Props = {
   timezone: string;
   currency: string;
   busy: boolean;
+  onViewLedger?: () => void;
   send: (body: Record<string, unknown>) => Promise<boolean | undefined>;
 };
 const groups = [
+  { id: "SALE", title: "Venta", detail: "", icon: Scissors },
+  { id: "SUPPLIES", title: "Compra de insumos", detail: "", icon: ShoppingBag },
+  { id: "EXPENSE", title: "Gasto del negocio", detail: "", icon: Receipt },
   {
-    id: "SALE",
-    title: "Vendí un corte o un producto",
-    detail: "Registra una venta pagada o por cobrar.",
+    id: "ASSET",
+    title: "Compra de equipo o mueble",
+    detail: "",
+    icon: Armchair,
+  },
+  { id: "OWNER", title: "Dinero del dueño", detail: "", icon: Wallet },
+  { id: "DEBT", title: "Deudas y cobros", detail: "", icon: Landmark },
+];
+const cards = [
+  {
+    id: "service",
+    group: "SALE",
+    variant: "SALE_SERVICE",
+    category: undefined,
+    section: "Ventas",
+    title: "Cobré un corte o servicio",
     icon: Scissors,
   },
   {
-    id: "SUPPLIES",
-    title: "Compré insumos",
-    detail: "Cuchillas, productos y materiales de uso.",
+    id: "product",
+    group: "SALE",
+    variant: "SALE_PRODUCT",
+    category: undefined,
+    section: "Ventas",
+    title: "Vendí un producto",
     icon: ShoppingBag,
   },
   {
-    id: "EXPENSE",
-    title: "Tuve otro gasto",
-    detail: "Arriendo, servicios, marketing y otros.",
+    id: "supplies",
+    group: "SUPPLIES",
+    variant: undefined,
+    category: undefined,
+    section: "Compras y gastos",
+    title: "Compré insumos",
+    icon: Package,
+  },
+  {
+    id: "rent",
+    group: "EXPENSE",
+    variant: undefined,
+    category: "RENT",
+    section: "Compras y gastos",
+    title: "Pagué arriendo",
+    icon: Home,
+  },
+  {
+    id: "utilities",
+    group: "EXPENSE",
+    variant: undefined,
+    category: "UTILITIES",
+    section: "Compras y gastos",
+    title: "Pagué agua, luz o internet",
+    icon: Lightbulb,
+  },
+  {
+    id: "expense",
+    group: "EXPENSE",
+    variant: undefined,
+    category: "OTHER",
+    section: "Compras y gastos",
+    title: "Pagué otro gasto",
     icon: Receipt,
   },
   {
-    id: "ASSET",
+    id: "asset",
+    group: "ASSET",
+    variant: undefined,
+    category: undefined,
+    section: "Compras y gastos",
     title: "Compré una máquina o un mueble",
-    detail: "Una compra que usarás en el negocio.",
     icon: Armchair,
   },
   {
-    id: "OWNER",
-    title: "Aporté o retiré dinero del negocio",
-    detail: "Tu dinero personal y el negocio, separados.",
+    id: "contribute",
+    group: "OWNER",
+    variant: "OWNER_CONTRIBUTION",
+    category: undefined,
+    section: "Dinero del dueño",
+    title: "Aporté dinero al negocio",
     icon: Wallet,
   },
   {
-    id: "DEBT",
-    title: "Recibí un préstamo o pagué una deuda",
-    detail: "Préstamos y pagos pendientes.",
+    id: "withdraw",
+    group: "OWNER",
+    variant: "OWNER_WITHDRAWAL",
+    category: undefined,
+    section: "Dinero del dueño",
+    title: "Retiré dinero para mí",
+    icon: ArrowDownLeft,
+  },
+  {
+    id: "loan",
+    group: "DEBT",
+    variant: "LOAN",
+    category: undefined,
+    section: "Deudas y cobros",
+    title: "Recibí un préstamo",
     icon: Landmark,
+  },
+  {
+    id: "repay",
+    group: "DEBT",
+    variant: "DEBT_PAYMENT",
+    category: undefined,
+    section: "Deudas y cobros",
+    title: "Pagué un préstamo",
+    icon: Landmark,
+  },
+  {
+    id: "pay",
+    group: "DEBT",
+    variant: "PENDING_DEBT",
+    category: undefined,
+    section: "Deudas y cobros",
+    title: "Pagué una compra que debía",
+    icon: Receipt,
+  },
+  {
+    id: "collect",
+    group: "DEBT",
+    variant: "PENDING_SALE",
+    category: undefined,
+    section: "Deudas y cobros",
+    title: "Me pagaron una venta pendiente",
+    icon: Wallet,
   },
 ];
 const money = (n: number, currency: string) =>
@@ -75,6 +176,7 @@ export default function Operations({
   currency,
   busy,
   send,
+  onViewLedger,
 }: Props) {
   const [scanning, setScanning] = useState(false);
   const today = formatInTimeZone(new Date(), timezone, "yyyy-MM-dd");
@@ -101,7 +203,10 @@ export default function Operations({
   ) as Operation["kind"];
   const paysLater = ["SALE", "SUPPLIES", "EXPENSE", "ASSET"].includes(group);
   const paysIn =
-    group === "SALE" || kind === "OWNER_CONTRIBUTION" || kind === "LOAN";
+    group === "SALE" ||
+    kind === "OWNER_CONTRIBUTION" ||
+    kind === "LOAN" ||
+    variant === "PENDING_SALE";
   function choose(id: string) {
     setGroup(id);
     setVariant(
@@ -128,7 +233,10 @@ export default function Operations({
     setSuccess("");
     try {
       let body: Record<string, unknown>;
-      if (group === "DEBT" && variant === "PENDING_DEBT")
+      if (
+        group === "DEBT" &&
+        ["PENDING_DEBT", "PENDING_SALE"].includes(variant)
+      )
         body = {
           action: "settle",
           id: debtId,
@@ -177,56 +285,75 @@ export default function Operations({
           movimientos anteriores se conservan y las citas siguen funcionando.
         </p>
       )}
-      <section className="card">
-        <p className="eyebrow">ANOTAR UN MOVIMIENTO</p>
-        <h2 className="text-2xl font-semibold mt-2">
-          ¿Qué pasó en tu negocio?
-        </h2>
-        <p className="muted text-sm mt-3">
-          Elige lo que hiciste y anota cuánto y cuándo. Las citas que marcas
-          como completadas en la agenda ya se suman solas; no las registres otra
-          vez.
-        </p>
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3 mt-6">
-          {groups
-            .filter((g) => ["SALE", "SUPPLIES", "EXPENSE"].includes(g.id))
-            .map(({ id, title, detail, icon: Icon }) => (
-              <button
-                key={id}
-                disabled={busy || scanning || !finance.ready}
-                onClick={() => choose(id)}
-                className={`rounded-xl border p-4 text-left flex gap-3 ${group === id ? "border-[#52754c] bg-[#f2f6ed]" : "border-[#e1e6db] hover:bg-[#f7f8f5]"}`}
-              >
-                <Icon size={22} className="text-[#62785a] shrink-0 mt-1" />
-                <div>
-                  <p className="text-sm font-semibold">{title}</p>
-                  <p className="muted text-xs leading-5 mt-2">{detail}</p>
-                </div>
-              </button>
-            ))}
-        </div>
-        <details className="mt-4">
-          <summary className="cursor-pointer text-sm font-semibold">
-            Otros: equipos, dinero personal o préstamos
-          </summary>
-          <div className="grid md:grid-cols-3 gap-3 mt-3">
-            {groups
-              .filter((g) => !["SALE", "SUPPLIES", "EXPENSE"].includes(g.id))
-              .map(({ id, title, detail, icon: Icon }) => (
-                <button
-                  type="button"
-                  key={id}
-                  disabled={busy || scanning || !finance.ready}
-                  onClick={() => choose(id)}
-                  className={`rounded-xl border p-4 text-left ${group === id ? "bg-[#f2f6ed] border-[#52754c]" : ""}`}
-                >
-                  <Icon size={20} />
-                  <p className="text-sm font-semibold mt-2">{title}</p>
-                  <p className="text-xs muted mt-2">{detail}</p>
-                </button>
-              ))}
+      <section className="operations-picker">
+        <div className="flex flex-wrap justify-between items-center gap-4">
+          <div>
+            <p className="eyebrow">CONTABILIDAD SIMPLE</p>
+            <h2 className="text-3xl font-semibold mt-3">
+              ¿Qué pasó en tu negocio?
+            </h2>
+            <p className="muted text-sm mt-3">
+              Cuéntalo con palabras simples. El libro diario se completa al
+              guardar.
+            </p>
           </div>
-        </details>
+          <button
+            type="button"
+            className="primary flex gap-2 items-center"
+            disabled={busy || scanning || !finance.ready}
+            onClick={() => {
+              choose("SUPPLIES");
+              requestAnimationFrame(() =>
+                document
+                  .getElementById("receipt-photo")
+                  ?.scrollIntoView({ behavior: "smooth", block: "center" }),
+              );
+            }}
+          >
+            <ScanLine size={18} />
+            Escanear factura o boleta
+          </button>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-7">
+          {cards.map((card) => {
+            const Icon = card.icon;
+            const active =
+              group === card.group &&
+              (!card.variant || variant === card.variant) &&
+              (!card.category || category === card.category);
+            return (
+              <button
+                type="button"
+                key={card.id}
+                disabled={busy || scanning || !finance.ready}
+                aria-pressed={active}
+                onClick={() => {
+                  choose(card.group);
+                  if (card.variant) setVariant(card.variant);
+                  setCategory(card.category ?? "OTHER");
+                  requestAnimationFrame(() =>
+                    document
+                      .getElementById("operation-form")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                  );
+                }}
+                className={`operation-tile ${active ? "operation-tile-active" : ""}`}
+              >
+                <span className="operation-icon">
+                  <Icon size={21} />
+                </span>
+                <span>
+                  <span className="block text-xs muted mb-2">
+                    {card.section}
+                  </span>
+                  <span className="block text-sm font-semibold">
+                    {card.title}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
         {success && (
           <p
             role="status"
@@ -237,57 +364,21 @@ export default function Operations({
           </p>
         )}
         {group && (
-          <form onSubmit={submit} className="mt-7 pt-6 border-t">
+          <form
+            id="operation-form"
+            onSubmit={submit}
+            className="card mt-7 scroll-mt-6"
+          >
             <h3 className="font-semibold mb-5">
-              {groups.find((g) => g.id === group)?.title}
+              {cards.find(
+                (c) =>
+                  c.group === group &&
+                  (!c.variant || c.variant === variant) &&
+                  (!c.category || c.category === category),
+              )?.title ?? groups.find((g) => g.id === group)?.title}
             </h3>
             <div className="grid lg:grid-cols-[1fr_1fr] gap-6">
               <div>
-                {["SALE", "OWNER", "DEBT"].includes(group) && (
-                  <div className="mb-5">
-                    <label htmlFor="operation-kind">¿Qué hiciste?</label>
-                    <select
-                      id="operation-kind"
-                      disabled={scanning || busy}
-                      value={variant}
-                      onChange={(e) => {
-                        setVariant(e.target.value);
-                        setState("PAID");
-                        request.current = null;
-                      }}
-                    >
-                      {group === "SALE" ? (
-                        <>
-                          <option value="SALE_SERVICE">
-                            Cobré un servicio
-                          </option>
-                          <option value="SALE_PRODUCT">
-                            Vendí un producto
-                          </option>
-                        </>
-                      ) : group === "OWNER" ? (
-                        <>
-                          <option value="OWNER_CONTRIBUTION">
-                            Aporté dinero al negocio
-                          </option>
-                          <option value="OWNER_WITHDRAWAL">
-                            Retiré dinero para mí
-                          </option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="LOAN">Recibí un préstamo</option>
-                          <option value="DEBT_PAYMENT">
-                            Pagué un préstamo
-                          </option>
-                          <option value="PENDING_DEBT">
-                            Pagué una compra pendiente
-                          </option>
-                        </>
-                      )}
-                    </select>
-                  </div>
-                )}
                 {group === "SALE" && (
                   <p className="muted bg-[#f4f6ef] rounded-xl p-3 text-xs leading-5 mb-5">
                     Si el cobro corresponde a una cita agendada, márcala como
@@ -295,18 +386,32 @@ export default function Operations({
                     sola vez.
                   </p>
                 )}
-                {variant === "PENDING_DEBT" ? (
+                {["PENDING_DEBT", "PENDING_SALE"].includes(variant) ? (
                   <div className="mb-5">
-                    <label htmlFor="pending-debt">Compra pendiente</label>
+                    <label htmlFor="pending-debt">
+                      {variant === "PENDING_SALE"
+                        ? "Venta pendiente de cobro"
+                        : "Compra pendiente de pago"}
+                    </label>
                     <select
                       id="pending-debt"
                       required
                       value={debtId}
                       onChange={(e) => setDebtId(e.target.value)}
                     >
-                      <option value="">Elige la compra que vas a pagar</option>
+                      <option value="">
+                        {variant === "PENDING_SALE"
+                          ? "Elige la venta que te pagaron"
+                          : "Elige la compra que vas a pagar"}
+                      </option>
                       {pending
-                        .filter((p) => p.pendingAccount === "PAYABLE")
+                        .filter(
+                          (p) =>
+                            p.pendingAccount ===
+                            (variant === "PENDING_SALE"
+                              ? "RECEIVABLE"
+                              : "PAYABLE"),
+                        )
                         .map((p) => (
                           <option value={p.id} key={p.id}>
                             {p.description} · {money(p.amount, currency)}
@@ -314,8 +419,9 @@ export default function Operations({
                         ))}
                     </select>
                     <p className="muted text-xs mt-2">
-                      Se pagará el saldo completo. No vuelve a contarse como
-                      gasto.
+                      Se registrará el saldo completo. La venta o compra ya
+                      estaba anotada; no vuelve a contarse en tus ganancias o
+                      gastos.
                     </p>
                   </div>
                 ) : (
@@ -459,7 +565,7 @@ export default function Operations({
                     </select>
                   </div>
                 )}
-                {variant !== "PENDING_DEBT" && (
+                {!["PENDING_DEBT", "PENDING_SALE"].includes(variant) && (
                   <div className="mt-4">
                     <label htmlFor="operation-description">
                       {state === "PENDING"
@@ -492,7 +598,8 @@ export default function Operations({
                     busy ||
                     scanning ||
                     !finance.ready ||
-                    (variant === "PENDING_DEBT" && !debtId)
+                    (["PENDING_DEBT", "PENDING_SALE"].includes(variant) &&
+                      !debtId)
                   }
                   className="primary mt-5 w-full flex justify-center items-center gap-2"
                 >
@@ -531,7 +638,27 @@ export default function Operations({
           de caja o banco.
         </p>
       </details>
-      <section className="card mt-5">
+      <section className="card mt-8">
+        <div className="flex flex-wrap justify-between gap-3 items-center mb-6">
+          <div>
+            <h2 className="text-lg font-semibold">
+              Tus operaciones registradas
+            </h2>
+            <p className="muted text-sm mt-2">
+              También están guardadas en el libro diario.
+            </p>
+          </div>
+          {onViewLedger && (
+            <button
+              type="button"
+              onClick={onViewLedger}
+              className="muted text-sm flex gap-2"
+            >
+              <BookOpen size={16} />
+              Ver libro diario
+            </button>
+          )}
+        </div>
         <div className="flex flex-wrap gap-5 border-b pb-4 mb-5">
           {["Movimientos", "Pendientes"].map((v) => (
             <button

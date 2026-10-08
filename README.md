@@ -169,3 +169,18 @@ confirmación. No se presume IVA recuperable ni se emiten documentos tributarios
 almacenar la conversación (`store: false`); aplican sus políticas de tratamiento
 API. Si falta clave o falla el proveedor, la lectura automática local sigue
 funcionando. Las llamadas al proveedor pueden tener costo según su tarifa.
+
+### Contabilidad con tarjetas por acción
+
+El panel mantiene la identidad Aura con barra lateral y una sección
+**Contabilidad** inspirada en las capturas de referencia. Incluye 13 tarjetas
+directas: servicios, productos, insumos, arriendo, servicios básicos, otros gastos,
+equipos, aportes, retiros, préstamo recibido, pago de préstamo, pago de compra
+pendiente y cobro de venta pendiente. Las tarjetas preseleccionan el tipo de
+movimiento y categoría; no hay que elegirlos nuevamente. Los cobros y pagos
+pendientes usan los saldos ya registrados, sin duplicar ganancias o gastos.
+
+Las pestañas separan **Registrar una operación**, **Lo que tengo y debo**,
+**Ganancias y pérdidas**, **Libro diario (detalle)** e **IVA**. El botón de escaneo
+abre el formulario de compra con el lector existente. La agenda, la configuración,
+las correcciones auditables y los reportes Excel se conservan.
