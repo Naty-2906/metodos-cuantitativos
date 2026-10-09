@@ -80,3 +80,68 @@ test("RUT validation checks verifier", () => {
   assert.equal(validRut("12345678-0"), false);
   assert.equal(validRut(""), false);
 });
+test("balance accumulates journal accounts, equity and reversals through the selected month", () => {
+  const entry = (
+    id: string,
+    date: string,
+    lines: JournalView["lines"],
+  ): JournalView => ({
+    ...sale,
+    id,
+    sourceKey: `manual:${id}`,
+    date,
+    document: undefined,
+    lines,
+  });
+  const capital = entry("capital", "2026-09-01T15:00:00Z", [
+    { account: "BANK", debit: 5000000, credit: 0 },
+    { account: "OWNER_CAPITAL", debit: 0, credit: 5000000 },
+  ]);
+  const purchase = entry("equipment", "2026-10-02T15:00:00Z", [
+    { account: "EQUIPMENT", debit: 2000000, credit: 0 },
+    { account: "PAYABLE", debit: 0, credit: 2000000 },
+  ]);
+  const withdrawal = entry("withdrawal", "2026-10-03T15:00:00Z", [
+    { account: "OWNER_DRAWINGS", debit: 100000, credit: 0 },
+    { account: "BANK", debit: 0, credit: 100000 },
+  ]);
+  const entries = [capital, sale, purchase, withdrawal];
+  const r = report(entries, "2026-10", "America/Santiago", "CLP");
+  assert.equal(r.assets, 8090000);
+  assert.equal(r.liabilities, 2190000);
+  assert.equal(r.equity, 5900000);
+  assert.equal(r.balanceDifference, 0);
+  assert.equal(
+    r.balanceSheet.find(
+      (row) => row.label === "Ganancias o pérdidas acumuladas",
+    )?.amount,
+    1000000,
+  );
+  assert.equal(
+    r.balanceSheet.find((row) => row.label === "Retiros del dueño")?.amount,
+    -100000,
+  );
+  assert.equal(
+    report(entries, "2026-09", "America/Santiago", "CLP").assets,
+    6190000,
+  );
+  const reversal = {
+    ...purchase,
+    id: "reverse-equipment",
+    sourceKey: "reversal:equipment",
+    lines: purchase.lines.map((l) => ({
+      ...l,
+      debit: l.credit,
+      credit: l.debit,
+    })),
+  };
+  const corrected = report(
+    [...entries, reversal],
+    "2026-10",
+    "America/Santiago",
+    "CLP",
+  );
+  assert.equal(corrected.assets, r.assets - 2000000);
+  assert.equal(corrected.liabilities, r.liabilities - 2000000);
+  assert.equal(corrected.balanceDifference, 0);
+});

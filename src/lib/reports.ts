@@ -150,8 +150,90 @@ export function report(
       section: "result",
     },
   ];
+  const balanceSheet = [
+    { label: "Activos corrientes", section: "heading", amount: 0 },
+    {
+      label: "Caja / efectivo",
+      section: "account",
+      amount: balanceOf(["CASH"]),
+    },
+    { label: "Banco", section: "account", amount: balanceOf(["BANK"]) },
+    {
+      label: "Fondos históricos registrados",
+      section: "account",
+      amount: balanceOf(["LEGACY_FUNDS"]),
+    },
+    {
+      label: "Cuentas por cobrar",
+      section: "account",
+      amount: balanceOf(["RECEIVABLE"]),
+    },
+    {
+      label: "IVA crédito fiscal registrado",
+      section: "account",
+      amount: balanceOf(["VAT_INPUT"]),
+    },
+    {
+      label: "Total activos corrientes",
+      section: "subtotal",
+      amount: balanceOf([
+        "CASH",
+        "BANK",
+        "LEGACY_FUNDS",
+        "RECEIVABLE",
+        "VAT_INPUT",
+      ]),
+    },
+    { label: "Activos no corrientes", section: "heading", amount: 0 },
+    {
+      label: "Equipos y muebles",
+      section: "account",
+      amount: balanceOf(["EQUIPMENT"]),
+    },
+    { label: "Total activos", section: "total", amount: assets },
+    { label: "Pasivos", section: "heading", amount: 0 },
+    {
+      label: "Cuentas por pagar",
+      section: "account",
+      amount: -balanceOf(["PAYABLE"]),
+    },
+    {
+      label: "Préstamos por pagar",
+      section: "account",
+      amount: -balanceOf(["LOAN"]),
+    },
+    {
+      label: "IVA débito fiscal registrado",
+      section: "account",
+      amount: -balanceOf(["VAT_OUTPUT"]),
+    },
+    { label: "Total pasivos", section: "subtotal", amount: liabilities },
+    { label: "Patrimonio", section: "heading", amount: 0 },
+    {
+      label: "Aportes del dueño",
+      section: "account",
+      amount: -balanceOf(["OWNER_CAPITAL"]),
+    },
+    {
+      label: "Retiros del dueño",
+      section: "account",
+      amount: -balanceOf(["OWNER_DRAWINGS"]),
+    },
+    {
+      label: "Ganancias o pérdidas acumuladas",
+      section: "account",
+      amount: cumulative.profit,
+    },
+    { label: "Total patrimonio", section: "subtotal", amount: equity },
+    {
+      label: "Total pasivos y patrimonio",
+      section: "total",
+      amount: liabilities + equity,
+    },
+  ];
   return {
     incomeStatement,
+    balanceSheet,
     cashIn,
     cashOut,
     assets,

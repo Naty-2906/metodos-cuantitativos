@@ -24,7 +24,7 @@ type Props = {
 };
 const tabs = [
   { name: "Registrar una operación", icon: BookOpen },
-  { name: "Lo que tengo y debo", icon: Scale },
+  { name: "Balance general", icon: Scale },
   { name: "Ganancias y pérdidas", icon: FileText },
   { name: "Libro diario (detalle)", icon: BookOpen },
   { name: "IVA", icon: FileText },
@@ -131,7 +131,7 @@ export default function AccountingWorkspace(props: Props) {
           onMonthChange={setMonth}
         />
       )}
-      {(tab === "Lo que tengo y debo" ||
+      {(tab === "Balance general" ||
         tab === "IVA" ||
         tab === "Libro diario (detalle)") && (
         <>
@@ -159,17 +159,18 @@ export default function AccountingWorkspace(props: Props) {
               />
             </label>
           </div>
-          {tab === "Lo que tengo y debo" && (
+          {tab === "Balance general" && (
             <>
               <p className="muted text-sm mb-5">
-                Tus bienes y deudas según lo que has registrado hasta el mes
-                elegido.
+                Situación del negocio al cierre del mes elegido. Se completa
+                automáticamente con el libro diario, incluidos los pagos y las
+                reversiones.
               </p>
               <div className="grid sm:grid-cols-3 gap-4">
                 {[
-                  ["Lo que tiene el negocio", r.assets],
-                  ["Lo que debe el negocio", r.liabilities],
-                  ["Lo que queda al dueño", r.equity],
+                  ["Total activos", r.assets],
+                  ["Total pasivos", r.liabilities],
+                  ["Total patrimonio", r.equity],
                 ].map(([label, n]) => (
                   <div className="card" key={String(label)}>
                     <p className="muted text-sm">{label}</p>
@@ -179,28 +180,59 @@ export default function AccountingWorkspace(props: Props) {
                   </div>
                 ))}
               </div>
-              <div className="card mt-5 space-y-4">
-                {[
-                  ["Efectivo registrado", r.cumulative.cash],
-                  ["Dinero en banco registrado", r.cumulative.bank],
-                  ["Ventas que falta cobrar", r.cumulative.receivable],
-                  ["Compras que falta pagar", r.cumulative.payable],
-                  ["Préstamos que falta pagar", r.cumulative.loans],
-                  ["Equipos y muebles", r.cumulative.equipment],
-                ].map(([s, n]) => (
-                  <p
-                    className="flex justify-between gap-3 text-sm"
-                    key={String(s)}
+              <div className="card mt-5">
+                <div className="flex flex-wrap justify-between gap-3 mb-5">
+                  <h3 className="font-semibold">Balance general · {month}</h3>
+                  <a
+                    className="text-sm font-semibold"
+                    href={`/api/admin/report?month=${month}`}
                   >
-                    <span>{s}</span>
-                    <strong>{money(Number(n))}</strong>
-                  </p>
-                ))}
+                    Descargar Excel
+                  </a>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3">Cuenta / concepto</th>
+                      <th className="text-right py-3">Saldo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {r.balanceSheet.map((row) => (
+                      <tr
+                        key={row.label}
+                        className={
+                          row.section === "total"
+                            ? "profit-highlight font-semibold"
+                            : row.section === "heading" ||
+                                row.section === "subtotal"
+                              ? "bg-emerald-50 font-semibold"
+                              : "border-b"
+                        }
+                      >
+                        <td className="py-3 px-2">{row.label}</td>
+                        <td className="text-right py-3 px-2 whitespace-nowrap">
+                          {row.section === "heading" ? "" : money(row.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p
+                  className={`mt-5 text-sm ${r.balanceDifference ? "text-red-700" : "text-emerald-800"}`}
+                >
+                  {r.balanceDifference === 0
+                    ? "Balance cuadrado: activos = pasivos + patrimonio."
+                    : `Revisa el libro diario: diferencia de cuadre ${money(r.balanceDifference)}.`}
+                </p>
               </div>
               <p className="muted text-xs mt-4">
-                Los saldos dependen de tus registros y no incluyen dinero
-                anterior al primer movimiento. El contador debe revisar saldos
-                iniciales y ajustes.
+                Saldos acumulados desde el primer registro, no solo movimientos
+                del mes. Los retiros restan patrimonio y las ganancias o
+                pérdidas se incorporan automáticamente. Los préstamos se
+                muestran sin separar plazos porque no se ha registrado su
+                vencimiento. No incluye saldos iniciales ni depreciaciones que
+                no hayas registrado.
               </p>
             </>
           )}

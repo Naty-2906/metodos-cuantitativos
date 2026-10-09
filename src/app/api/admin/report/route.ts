@@ -172,9 +172,10 @@ export async function GET(req: NextRequest) {
       "Balance general",
       ["Concepto", "Monto"],
       [
-        ["Activos registrados", amount(r.assets)],
-        ["Pasivos registrados", amount(r.liabilities)],
-        ["Patrimonio y resultado", amount(r.equity)],
+        ...r.balanceSheet.map((row) => [
+          row.label,
+          row.section === "heading" ? "" : amount(row.amount),
+        ]),
         ["Diferencia de cuadre", amount(r.balanceDifference)],
       ],
     );
